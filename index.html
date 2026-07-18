@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Raghuvir Scarlett - Shop Directory</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+    background: #020617;
+    color: #fff;
+    min-height: 100vh;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 0 16px; }
+  header { text-align: center; padding: 28px 16px 16px; }
+  header h1 { font-size: 28px; font-weight: 800; letter-spacing: 0.03em; }
+  header p { color: #fbbf24; font-size: 11px; letter-spacing: 0.25em; margin-top: 6px; font-weight: 700; }
+
+  .search-box { position: relative; margin-bottom: 16px; }
+  .search-box svg { position: absolute; left: 16px; top: 50%; transform: translateY(-50%); color: #64748b; }
+  input[type="text"], input[type="date"] {
+    width: 100%;
+    background: #fff;
+    color: #0f172a;
+    border: 2px solid #cbd5e1;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-size: 16px;
+    font-weight: 600;
+    outline: none;
+  }
+  input::placeholder { color: #94a3b8; }
+  input:focus { border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.25); }
+  #searchInput { padding-left: 46px; font-size: 18px; border-radius: 16px; padding-top: 16px; padding-bottom: 16px; }
+
+  .msg { background: #10b981; color: #fff; font-weight: 700; font-size: 12px; letter-spacing: 0.05em;
+    border-radius: 10px; padding: 10px 16px; text-align: center; margin-bottom: 16px; }
+  .err { background: #450a0a; color: #fca5a5; border: 2px solid #ef4444; font-weight: 700; font-size: 12px;
+    border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
+
+  .empty { text-align: center; margin-top: 60px; color: #64748b; }
+  .empty p.main { font-size: 14px; font-weight: 600; }
+  .empty p.sub { font-size: 12px; color: #475569; margin-top: 6px; }
+
+  .result-item {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    background: #0f172a; border: 2px solid #334155; border-radius: 14px;
+    padding: 14px 16px; margin-bottom: 8px; cursor: pointer; text-align: left;
+    color: #fff; font: inherit;
+  }
+  .result-item:hover { border-color: #f59e0b; }
+  .result-item .shop { font-weight: 800; }
+  .result-item .firm { color: #94a3b8; font-size: 12px; margin-top: 2px; font-weight: 500; }
+
+  .card { background: #0f172a; border: 1px solid #334155; border-radius: 16px; overflow: hidden; }
+  .card-head { background: #1e293b; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; }
+  .card-head .label { color: #fbbf24; font-size: 11px; letter-spacing: 0.15em; font-weight: 800; }
+  .card-head .shopnum { font-size: 24px; font-weight: 800; margin-top: 2px; }
+  .update-btn { display: flex; align-items: center; gap: 6px; background: #f59e0b; color: #020617;
+    font-weight: 800; font-size: 12px; letter-spacing: 0.03em; padding: 10px 14px; border-radius: 10px;
+    border: none; cursor: pointer; }
+  .update-btn:hover { background: #fbbf24; }
+
+  .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px;
+    border-bottom: 1px solid #1e293b; }
+  .row:last-child { border-bottom: none; }
+  .row .k { color: #94a3b8; font-size: 12px; font-weight: 700; letter-spacing: 0.02em; }
+  .row .v { font-weight: 800; font-size: 14px; text-align: right; margin-left: 12px; }
+  .pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+  .pill.yes { background: #052e16; color: #4ade80; }
+  .pill.no { background: #450a0a; color: #f87171; }
+
+  .row.phone-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .row.phone-row .top { display: flex; align-items: center; justify-content: space-between; }
+  .phone-actions { display: flex; gap: 8px; }
+  .phone-btn { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px;
+    padding: 9px; border-radius: 9px; font-size: 12px; font-weight: 800; letter-spacing: 0.02em;
+    text-decoration: none; border: none; cursor: pointer; }
+  .phone-btn.call { background: #1d4ed8; color: #fff; }
+  .phone-btn.call:hover { background: #2563eb; }
+  .phone-btn.whatsapp { background: #16a34a; color: #fff; }
+  .phone-btn.whatsapp:hover { background: #22c55e; }
+
+  .history { margin-top: 16px; }
+  .history summary { cursor: pointer; color: #94a3b8; font-size: 12px; font-weight: 800; letter-spacing: 0.05em;
+    padding: 12px 4px; list-style: none; display: flex; align-items: center; gap: 6px; }
+  .history summary::-webkit-details-marker { display: none; }
+  .history-entry { background: #0f172a; border: 1px solid #334155; border-radius: 12px; margin-top: 8px; overflow: hidden; }
+  .history-entry .h-head { background: #1e1206; color: #fbbf24; font-size: 11px; font-weight: 800; letter-spacing: 0.05em;
+    padding: 10px 16px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 10px; }
+  .history-entry .h-head .h-title { flex: 1; }
+  .h-delete-btn { flex-shrink: 0; background: #ef4444; color: #fff; border: none; border-radius: 6px;
+    width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; font-size: 12px; }
+  .h-delete-btn:hover { background: #f87171; }
+  .history-entry .h-row { display: flex; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid #1e293b; font-size: 12px; }
+  .history-entry .h-row:last-child { border-bottom: none; }
+  .history-entry .h-row .k { color: #64748b; font-weight: 700; }
+  .history-entry .h-row .v { color: #cbd5e1; font-weight: 700; text-align: right; margin-left: 12px; }
+
+  .fab { position: fixed; bottom: 24px; right: 24px; width: 56px; height: 56px; border-radius: 50%;
+    background: #f59e0b; color: #020617; border: none; display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.4); cursor: pointer; }
+  .fab:hover { background: #fbbf24; }
+
+  footer { text-align: center; padding: 20px 0; color: #475569; font-size: 10px; letter-spacing: 0.1em; font-weight: 600; }
+
+  #formView { display: none; min-height: 100vh; padding-bottom: 40px; }
+  .form-header { position: sticky; top: 0; background: #020617; border-bottom: 1px solid #334155;
+    padding: 16px; display: flex; align-items: center; gap: 12px; z-index: 10; }
+  .back-btn { background: none; border: none; color: #cbd5e1; cursor: pointer; display: flex; }
+  .back-btn:hover { color: #fff; }
+  .form-header h2 { font-size: 16px; font-weight: 800; letter-spacing: 0.02em; }
+  .field { margin: 16px 0; }
+  .field label { display: block; color: #fbbf24; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 6px; }
+  .field.muted label { color: #cbd5e1; }
+  .bool-row { display: flex; gap: 8px; }
+  .bool-btn { flex: 1; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em;
+    border: 2px solid #334155; background: #0f172a; color: #94a3b8; cursor: pointer; }
+  .bool-btn.active-yes { background: #10b981; border-color: #10b981; color: #fff; }
+  .bool-btn.active-no { background: #ef4444; border-color: #ef4444; color: #fff; }
+  .save-btn { width: 100%; background: #f59e0b; color: #020617; font-weight: 800; font-size: 15px;
+    letter-spacing: 0.03em; padding: 16px; border-radius: 12px; border: none; margin-top: 12px; cursor: pointer; }
+  .save-btn:hover { background: #fbbf24; }
+  input:disabled { opacity: 0.7; }
+</style>
+
+</head>
+<body>
+
+<div id="searchView">
+  <div class="wrap">
+    <header>
+      <h1>RAGHUVIR SCARLETT</h1>
+      <p>SHOP DIRECTORY</p>
+    </header>
+
+    <div class="search-box">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="text" id="searchInput" placeholder="SEARCH SHOP NUMBER" autocomplete="off">
+    </div>
+
+    <div id="msgArea"></div>
+    <div id="resultArea" class="empty">
+      <p class="main">ENTER A SHOP NUMBER TO SEARCH</p>
+      <p class="sub" id="countText">0 PARTIES SAVED</p>
+    </div>
+  </div>
+
+  <button class="fab" id="addFab" title="Add party details">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+
+  <footer>DEVELOPED BY ADITYA VADODE</footer>
+</div>
+
+<div id="formView">
+  <div class="form-header">
+    <button class="back-btn" id="backBtn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+    </button>
+    <h2 id="formTitle">ADD PARTY DETAILS</h2>
+  </div>
+  <div class="wrap">
+    <div id="formErr"></div>
+    <form id="partyForm"></form>
+  </div>
+</div>
+
+<script>
+const FIELD_DEFS = [
+  { key: "firmName", label: "FIRM NAME", type: "text" },
+  { key: "gstNo", label: "GST NO", type: "text" },
+  { key: "ownerName", label: "SHOP OWNER NAME", type: "text" },
+  { key: "ownerMobile", label: "OWNER MOBILE NUMBER", type: "phone" },
+  { key: "rentalName", label: "RENTAL NAME", type: "text" },
+  { key: "rentalMobile", label: "RENTAL MOBILE NUMBER", type: "phone" },
+  { key: "partnerName", label: "PARTNER NAME", type: "text" },
+  { key: "partnerMobile", label: "PARTNER MOBILE NUMBER", type: "phone" },
+  { key: "officeManagerNumber", label: "OFFICE MANAGER NUMBER", type: "phone" },
+  { key: "brokerName", label: "BROKER NAME", type: "text" },
+  { key: "brokerMobile", label: "BROKER MOBILE NUMBER", type: "phone" },
+  { key: "possessionDate", label: "POSSESSION DATE", type: "date" },
+  { key: "referenceFormStatus", label: "REFERENCE FORM STATUS", type: "bool" },
+  { key: "agreementStatus", label: "AGREEMENT STATUS", type: "bool" },
+  { key: "shopMaliyaStatus", label: "SHOP MALIYA STATUS", type: "bool" },
+  { key: "furnitureStatus", label: "FURNITURE STATUS", type: "bool" },
+  { key: "cpFittingStatus", label: "CP FITTING STATUS", type: "bool" },
+  { key: "liftNumber", label: "LIFT NUMBER", type: "text" },
+];
+
+// =========================================================
+// GOOGLE SHEET (Apps Script) URL - yaha apna Web App URL paste karo
+// (Apps Script me Deploy > New deployment > Web app se milega)
+// =========================================================
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLl1SCzWSGXzjuziG7s6RMAiE54KEtgL5kZazSPD48i3Y56U3RNdXaysWbF1aW97TI/exec";
+
+let parties = {};
+let editingKey = null;
+let isSaving = false;
+let currentViewKey = null; // abhi jo shop detail screen pe khula hai uska number
+
+const searchView = document.getElementById('searchView');
+const formView = document.getElementById('formView');
+const searchInput = document.getElementById('searchInput');
+const resultArea = document.getElementById('resultArea');
+const msgArea = document.getElementById('msgArea');
+const countText = document.getElementById('countText');
+const partyForm = document.getElementById('partyForm');
+const formTitle = document.getElementById('formTitle');
+const formErr = document.getElementById('formErr');
+
+async function fetchFromSheet() {
+  const res = await fetch(APPS_SCRIPT_URL, { method: 'GET' });
+  const data = await res.json();
+  return data && typeof data === 'object' ? data : {};
+}
+
+async function loadData() {
+  try {
+    parties = await fetchFromSheet();
+  } catch (e) {
+    console.error('Load failed', e);
+  }
+  renderSearch();
+
+  // Har 6 second me background me Sheet check karo, taaki doosron ka add/update kiya data bhi dikhe
+  setInterval(async () => {
+    if (isSaving || formView.style.display === 'block') return; // form khula ho to disturb mat karo
+    try {
+      parties = await fetchFromSheet();
+      renderSearch(currentViewKey || undefined); // jo detail khuli hai wahi refresh karo, list pe wapas mat bhejo
+    } catch (e) {
+      // silently ignore, next try me fir chalega
+    }
+  }, 6000);
+}
+
+function syncToStorage() {
+  isSaving = true;
+  fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' }, // preflight se bachne ke liye text/plain
+    body: JSON.stringify(parties)
+  }).catch((e) => {
+    console.error('Sync failed', e);
+    showMsg('SAVE FAILED - CHECK INTERNET');
+  }).finally(() => { isSaving = false; });
+}
+
+function showMsg(text) {
+  msgArea.innerHTML = '<div class="msg">' + text + '</div>';
+  setTimeout(() => { msgArea.innerHTML = ''; }, 2500);
+}
+
+function renderSearch(selectedKey) {
+  const q = searchInput.value.trim().toUpperCase();
+  countText.textContent = Object.keys(parties).length + ' PARTIES SAVED';
+
+  if (selectedKey && parties[selectedKey]) {
+    currentViewKey = selectedKey;
+    resultArea.className = '';
+    resultArea.innerHTML = renderCard(parties[selectedKey]);
+    document.getElementById('editBtn').onclick = () => openForm(selectedKey);
+    resultArea.querySelectorAll('.h-delete-btn').forEach(btn => {
+      btn.onclick = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        deleteHistoryEntry(btn.dataset.shop, parseInt(btn.dataset.idx, 10));
+      };
+    });
+    return;
+  }
+
+  currentViewKey = null; // koi detail khuli nahi hai, list/search view hai
+
+  if (!q) {
+    resultArea.className = 'empty';
+    resultArea.innerHTML = '<p class="main">ENTER A SHOP NUMBER TO SEARCH</p><p class="sub">' + Object.keys(parties).length + ' PARTIES SAVED</p>';
+    return;
+  }
+
+  const matches = Object.values(parties).filter(p => p.shopNumber.toUpperCase().includes(q));
+
+  if (matches.length === 0) {
+    resultArea.className = 'empty';
+    resultArea.innerHTML = '<p class="main">NO SHOP FOUND FOR "' + q + '"</p>';
+    return;
+  }
+
+  resultArea.className = '';
+  resultArea.innerHTML = matches.map(p =>
+    '<button class="result-item" data-key="' + p.shopNumber + '">' +
+      '<div><div class="shop">' + p.shopNumber + '</div><div class="firm">' + (p.firmName || '\u2014') + '</div></div>' +
+      '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>' +
+    '</button>'
+  ).join('');
+
+  resultArea.querySelectorAll('.result-item').forEach(btn => {
+    btn.onclick = () => renderSearch(btn.dataset.key);
+  });
+}
+
+function cleanPhone(raw) {
+  let digits = (raw || '').replace(/\D/g, '');
+  if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
+  if (digits.length === 10) digits = '91' + digits;
+  return digits;
+}
+
+function deleteHistoryEntry(shopNumber, idx) {
+  const p = parties[shopNumber];
+  if (!p || !p.history || !p.history[idx]) return;
+  if (!confirm('Ye purani history entry delete karni hai? Ye wapas nahi aayegi.')) return;
+  p.history.splice(idx, 1);
+  syncToStorage();
+  renderSearch(shopNumber);
+}
+
+function renderCard(p) {
+  let rows = '';
+  FIELD_DEFS.forEach(f => {
+    const val = p[f.key];
+    if (!val) return;
+    if (f.type === 'bool') {
+      const yes = val === 'YES';
+      rows += '<div class="row"><span class="k">' + f.label + '</span><span class="pill ' + (yes ? 'yes' : 'no') + '">' + val + '</span></div>';
+    } else if (f.type === 'phone') {
+      const digits = cleanPhone(val);
+      rows += '<div class="row phone-row">' +
+        '<div class="top"><span class="k">' + f.label + '</span><span class="v">' + val + '</span></div>' +
+        '<div class="phone-actions">' +
+          '<a class="phone-btn call" href="tel:' + digits + '">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
+            'CALL</a>' +
+          '<a class="phone-btn whatsapp" href="https://wa.me/' + digits + '" target="_blank" rel="noopener">' +
+            '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 6.32A7.85 7.85 0 0 0 12.05 4a7.94 7.94 0 0 0-6.9 11.9L4 20l4.2-1.1a7.9 7.9 0 0 0 3.85 1h.01a7.94 7.94 0 0 0 5.54-13.58zm-5.55 12.2a6.57 6.57 0 0 1-3.35-.92l-.24-.14-2.5.65.67-2.43-.16-.25a6.6 6.6 0 1 1 12.24-3.5 6.57 6.57 0 0 1-6.66 6.59zm3.6-4.93c-.2-.1-1.17-.58-1.35-.64s-.31-.1-.44.1-.51.64-.62.77-.23.15-.42.05a5.4 5.4 0 0 1-2.7-2.36c-.2-.35.2-.32.58-1.08.06-.13.03-.24-.02-.34s-.44-1.06-.6-1.45c-.16-.38-.32-.33-.44-.34h-.38a.72.72 0 0 0-.52.25 2.2 2.2 0 0 0-.68 1.63c0 .96.7 1.89.8 2.02.1.13 1.38 2.1 3.34 2.95.47.2.83.32 1.11.41.47.15.9.13 1.24.08.38-.06 1.17-.48 1.33-.94s.16-.86.11-.94-.18-.13-.38-.23z"/></svg>' +
+            'WHATSAPP</a>' +
+        '</div>' +
+      '</div>';
+    } else {
+      rows += '<div class="row"><span class="k">' + f.label + '</span><span class="v">' + val + '</span></div>';
+    }
+  });
+
+  let historyHtml = '';
+  if (p.history && p.history.length) {
+    const entries = p.history.map((h, idx) => ({ h, idx })).slice().reverse().map(({ h, idx }) => {
+      let hrows = '';
+      FIELD_DEFS.forEach(f => {
+        const v = h[f.key];
+        if (!v) return;
+        hrows += '<div class="h-row"><span class="k">' + f.label + '</span><span class="v">' + v + '</span></div>';
+      });
+      return '<div class="history-entry">' +
+        '<div class="h-head">' +
+          '<button type="button" class="h-delete-btn" data-shop="' + p.shopNumber + '" data-idx="' + idx + '" title="Delete this old data">&#10005;</button>' +
+          '<span class="h-title">OLD DATA - SHOP ' + h.shopNumber + ' (UPDATED ON ' + h.savedAt + ')</span>' +
+        '</div>' + hrows + '</div>';
+    }).join('');
+    historyHtml = '<details class="history"><summary>&#9662; VIEW OLD / PREVIOUS DATA (' + p.history.length + ')</summary>' + entries + '</details>';
+  }
+
+  return (
+    '<div class="card">' +
+      '<div class="card-head">' +
+        '<div><div class="label">SHOP NUMBER</div><div class="shopnum">' + p.shopNumber + '</div></div>' +
+        '<button class="update-btn" id="editBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>UPDATE</button>' +
+      '</div>' +
+      '<div>' + rows + '</div>' +
+    '</div>' + historyHtml
+  );
+}
+
+function openForm(key) {
+  editingKey = key || null;
+  const data = key ? parties[key] : { shopNumber: '' };
+  formTitle.textContent = key ? 'UPDATE PARTY DETAILS' : 'ADD PARTY DETAILS';
+  formErr.innerHTML = '';
+
+  let html = '<div class="field"><label>SHOP NUMBER *</label>' +
+    '<input type="text" id="f_shopNumber" placeholder="e.g. G-101" value="' + (data.shopNumber || '') + '"' + (key ? ' disabled' : '') + '></div>';
+
+  FIELD_DEFS.forEach(f => {
+    if (f.type === 'bool') {
+      html += '<div class="field muted"><label>' + f.label + '</label><div class="bool-row">' +
+        '<button type="button" class="bool-btn" data-field="' + f.key + '" data-val="YES">YES</button>' +
+        '<button type="button" class="bool-btn" data-field="' + f.key + '" data-val="NO">NO</button>' +
+      '</div></div>';
+    } else {
+      html += '<div class="field muted"><label>' + f.label + '</label>' +
+        '<input type="' + (f.type === 'date' ? 'date' : 'text') + '" id="f_' + f.key + '" value="' + (data[f.key] || '') + '"></div>';
+    }
+  });
+
+  html += '<button type="submit" class="save-btn" id="saveBtn">' + (key ? 'UPDATE DETAILS' : 'SAVE DETAILS') + '</button>';
+  partyForm.innerHTML = html;
+
+  FIELD_DEFS.filter(f => f.type === 'bool').forEach(f => {
+    const val = data[f.key] || 'NO';
+    updateBoolButtons(f.key, val);
+  });
+
+  partyForm.querySelectorAll('.bool-btn').forEach(btn => {
+    btn.onclick = () => updateBoolButtons(btn.dataset.field, btn.dataset.val);
+  });
+
+  searchView.style.display = 'none';
+  formView.style.display = 'block';
+
+  if (!key) {
+    const shopNumField = document.getElementById('f_shopNumber');
+    const saveBtn = document.getElementById('saveBtn');
+    shopNumField.addEventListener('input', () => {
+      const val = shopNumField.value.trim().toUpperCase();
+      if (val && parties[val]) {
+        formErr.innerHTML = '<div class="err">SHOP ' + val + ' ALREADY EXISTS. USE UPDATE INSTEAD OF ADD.</div>';
+        saveBtn.disabled = true;
+        saveBtn.style.opacity = '0.6';
+      } else {
+        formErr.innerHTML = '';
+        saveBtn.disabled = false;
+        saveBtn.style.opacity = '1';
+      }
+    });
+  }
+}
+
+function updateBoolButtons(field, val) {
+  partyForm.querySelectorAll('.bool-btn[data-field="' + field + '"]').forEach(b => {
+    b.classList.remove('active-yes', 'active-no');
+    if (b.dataset.val === val) {
+      b.classList.add(val === 'YES' ? 'active-yes' : 'active-no');
+    }
+  });
+  partyForm.dataset['sel_' + field] = val;
+}
+
+function closeForm() {
+  searchView.style.display = 'block';
+  formView.style.display = 'none';
+  renderSearch();
+}
+
+partyForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  const shopNumberInput = document.getElementById('f_shopNumber');
+  const shopNumber = shopNumberInput.value.trim().toUpperCase();
+  if (!shopNumber) {
+    formErr.innerHTML = '<div class="err">SHOP NUMBER IS REQUIRED.</div>';
+    return;
+  }
+  if (!editingKey && parties[shopNumber]) {
+    formErr.innerHTML = '<div class="err">SHOP ' + shopNumber + ' ALREADY EXISTS. USE UPDATE INSTEAD OF ADD.</div>';
+    return;
+  }
+  formErr.innerHTML = '';
+
+  const record = { shopNumber };
+  FIELD_DEFS.forEach(f => {
+    if (f.type === 'bool') {
+      record[f.key] = partyForm.dataset['sel_' + f.key] || 'NO';
+    } else {
+      const el = document.getElementById('f_' + f.key);
+      record[f.key] = el.value.trim().toUpperCase();
+    }
+  });
+
+  const existing = parties[shopNumber];
+  if (existing) {
+    // keep old data before overwriting, with a timestamp
+    const oldSnapshot = {};
+    FIELD_DEFS.forEach(f => { oldSnapshot[f.key] = existing[f.key]; });
+    oldSnapshot.shopNumber = existing.shopNumber;
+    oldSnapshot.savedAt = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    record.history = (existing.history || []).concat([oldSnapshot]);
+  } else {
+    record.history = [];
+  }
+
+  parties[shopNumber] = record;
+  syncToStorage();
+
+  const wasEdit = !!editingKey;
+  editingKey = null;
+  closeForm();
+  searchInput.value = shopNumber;
+  showMsg('SHOP ' + shopNumber + (wasEdit ? ' UPDATED' : ' SAVED'));
+  renderSearch(shopNumber);
+});
+
+document.getElementById('addFab').onclick = () => openForm(null);
+document.getElementById('backBtn').onclick = closeForm;
+searchInput.addEventListener('input', () => renderSearch());
+
+loadData();
+</script>
+</body>
+</html>
