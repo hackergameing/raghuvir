@@ -394,8 +394,17 @@ function renderSearch(selectedKey) {
 
   if (selectedKey && parties[selectedKey]) {
     currentViewKey = selectedKey;
+
+    // Agar "OLD DATA" (history) pehle se khula hai, to refresh ke baad bhi khula rakho
+    const existingHistory = resultArea.querySelector('.history');
+    const wasHistoryOpen = existingHistory ? existingHistory.open : false;
+
     resultArea.className = '';
     resultArea.innerHTML = renderCard(parties[selectedKey]);
+
+    const newHistory = resultArea.querySelector('.history');
+    if (newHistory && wasHistoryOpen) newHistory.open = true;
+
     document.getElementById('editBtn').onclick = () => openForm(selectedKey);
     resultArea.querySelectorAll('.h-delete-btn').forEach(btn => {
       btn.onclick = (e) => {
