@@ -39,9 +39,18 @@
   .err { background: #450a0a; color: #fca5a5; border: 2px solid #ef4444; font-weight: 700; font-size: 12px;
     border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; }
 
-  .empty { text-align: center; margin-top: 60px; color: #64748b; }
+  .empty { text-align: center; margin-top: 40px; color: #64748b; }
   .empty p.main { font-size: 14px; font-weight: 600; }
   .empty p.sub { font-size: 12px; color: #475569; margin-top: 6px; }
+
+  /* Dashboard boxes */
+  .dash-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 18px; }
+  .dash-box { background: #0f172a; border: 2px solid #334155; border-radius: 14px; padding: 14px 12px;
+    text-align: left; color: #fff; cursor: pointer; font: inherit; }
+  .dash-box:hover { border-color: #f59e0b; }
+  .dash-box .dash-num { font-size: 26px; font-weight: 800; color: #fbbf24; line-height: 1; }
+  .dash-box .dash-label { font-size: 10.5px; font-weight: 800; letter-spacing: 0.03em; color: #94a3b8;
+    margin-top: 6px; line-height: 1.3; }
 
   .result-item {
     width: 100%; display: flex; align-items: center; justify-content: space-between;
@@ -106,7 +115,7 @@
 
   footer { text-align: center; padding: 20px 0; color: #475569; font-size: 10px; letter-spacing: 0.1em; font-weight: 600; }
 
-  #formView { display: none; min-height: 100vh; padding-bottom: 40px; }
+  #formView, #dashboardView { display: none; min-height: 100vh; padding-bottom: 40px; }
   .form-header { position: sticky; top: 0; background: #020617; border-bottom: 1px solid #334155;
     padding: 16px; display: flex; align-items: center; gap: 12px; z-index: 10; }
   .back-btn { background: none; border: none; color: #cbd5e1; cursor: pointer; display: flex; }
@@ -124,6 +133,7 @@
     letter-spacing: 0.03em; padding: 16px; border-radius: 12px; border: none; margin-top: 12px; cursor: pointer; }
   .save-btn:hover { background: #fbbf24; }
   input:disabled { opacity: 0.7; }
+  .dash-sub-empty { text-align: center; margin-top: 30px; color: #64748b; font-size: 13px; font-weight: 600; }
 </style>
 
 </head>
@@ -139,6 +149,25 @@
     <div class="search-box">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
       <input type="text" id="searchInput" placeholder="SEARCH SHOP NUMBER" autocomplete="off">
+    </div>
+
+    <div class="dash-grid">
+      <button class="dash-box" id="boxPossession">
+        <div class="dash-num" id="numPossession">0</div>
+        <div class="dash-label">POSSESSION EXPIRY (12 MONTHS)</div>
+      </button>
+      <button class="dash-box" id="boxSecurity">
+        <div class="dash-num" id="numSecurity">0</div>
+        <div class="dash-label">SECURITY DEPOSIT PENDING</div>
+      </button>
+      <button class="dash-box" id="boxAgreement">
+        <div class="dash-num" id="numAgreement">0</div>
+        <div class="dash-label">AGREEMENT PENDING</div>
+      </button>
+      <button class="dash-box" id="boxReference">
+        <div class="dash-num" id="numReference">0</div>
+        <div class="dash-label">REFERENCE FORM PENDING</div>
+      </button>
     </div>
 
     <div id="msgArea"></div>
@@ -168,6 +197,18 @@
   </div>
 </div>
 
+<div id="dashboardView">
+  <div class="form-header">
+    <button class="back-btn" id="dashBackBtn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+    </button>
+    <h2 id="dashTitle">POSSESSION EXPIRY</h2>
+  </div>
+  <div class="wrap">
+    <div id="dashListArea"></div>
+  </div>
+</div>
+
 <script>
 const FIELD_DEFS = [
   { key: "firmName", label: "FIRM NAME", type: "text" },
@@ -187,6 +228,8 @@ const FIELD_DEFS = [
   { key: "shopMaliyaStatus", label: "SHOP MALIYA STATUS", type: "bool" },
   { key: "furnitureStatus", label: "FURNITURE STATUS", type: "bool" },
   { key: "securityDepositStatus", label: "SECURITY DEPOSIT", type: "bool" },
+  { key: "veraBillStatus", label: "VERA BILL", type: "bool" },
+  { key: "maintenanceBillStatus", label: "MAINTENANCE BILL", type: "bool" },
 ];
 
 // =========================================================
@@ -202,6 +245,7 @@ let currentViewKey = null; // abhi jo shop detail screen pe khula hai uska numbe
 
 const searchView = document.getElementById('searchView');
 const formView = document.getElementById('formView');
+const dashboardView = document.getElementById('dashboardView');
 const searchInput = document.getElementById('searchInput');
 const resultArea = document.getElementById('resultArea');
 const msgArea = document.getElementById('msgArea');
@@ -209,6 +253,8 @@ const countText = document.getElementById('countText');
 const partyForm = document.getElementById('partyForm');
 const formTitle = document.getElementById('formTitle');
 const formErr = document.getElementById('formErr');
+const dashTitle = document.getElementById('dashTitle');
+const dashListArea = document.getElementById('dashListArea');
 
 async function fetchFromSheet() {
   const res = await fetch(APPS_SCRIPT_URL, { method: 'GET' });
@@ -226,7 +272,7 @@ async function loadData() {
 
   // Har 6 second me background me Sheet check karo, taaki doosron ka add/update kiya data bhi dikhe
   setInterval(async () => {
-    if (isSaving || formView.style.display === 'block') return; // form khula ho to disturb mat karo
+    if (isSaving || formView.style.display === 'block' || dashboardView.style.display === 'block') return; // form/dashboard khula ho to disturb mat karo
     try {
       parties = await fetchFromSheet();
       renderSearch(currentViewKey || undefined); // jo detail khuli hai wahi refresh karo, list pe wapas mat bhejo
@@ -253,7 +299,96 @@ function showMsg(text) {
   setTimeout(() => { msgArea.innerHTML = ''; }, 2500);
 }
 
+// ---------- Dashboard (Possession Expiry / Security / Agreement / Reference) ----------
+
+function getExpiryDate(possessionDateStr) {
+  const d = new Date(possessionDateStr);
+  d.setMonth(d.getMonth() + 12);
+  return d;
+}
+
+function formatDateDisplay(d) {
+  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+}
+
+function updateDashboardCounts() {
+  const all = Object.values(parties);
+  const securityPending = all.filter(p => p.securityDepositStatus === 'NO').length;
+  const agreementPending = all.filter(p => p.agreementStatus === 'NO').length;
+  const referencePending = all.filter(p => p.referenceFormStatus === 'NO').length;
+  const possessionCount = all.filter(p => p.possessionDate).length;
+  document.getElementById('numPossession').textContent = possessionCount;
+  document.getElementById('numSecurity').textContent = securityPending;
+  document.getElementById('numAgreement').textContent = agreementPending;
+  document.getElementById('numReference').textContent = referencePending;
+}
+
+function openDashboardList(type) {
+  const all = Object.values(parties);
+  let title = '';
+  let html = '';
+
+  if (type === 'possession') {
+    title = 'POSSESSION EXPIRY (DATE WISE)';
+    const withDate = all.filter(p => p.possessionDate).map(p => ({ p, expiry: getExpiryDate(p.possessionDate) }));
+    withDate.sort((a, b) => a.expiry - b.expiry);
+
+    if (!withDate.length) {
+      html = '<p class="dash-sub-empty">NO POSSESSION DATE ADDED YET</p>';
+    } else {
+      const today = new Date();
+      html = withDate.map(({ p, expiry }) => {
+        const expired = expiry < today;
+        return '<button class="result-item" data-key="' + p.shopNumber + '">' +
+          '<div><div class="shop">' + p.shopNumber + '</div><div class="firm">' + (p.firmName || '\u2014') + ' &middot; POSSESSION: ' + p.possessionDate + '</div></div>' +
+          '<span class="pill ' + (expired ? 'no' : 'yes') + '">' + (expired ? 'EXPIRED' : formatDateDisplay(expiry)) + '</span>' +
+        '</button>';
+      }).join('');
+    }
+  } else {
+    let filterFn;
+    if (type === 'security') { filterFn = p => p.securityDepositStatus === 'NO'; title = 'SECURITY DEPOSIT PENDING'; }
+    else if (type === 'agreement') { filterFn = p => p.agreementStatus === 'NO'; title = 'AGREEMENT PENDING'; }
+    else if (type === 'reference') { filterFn = p => p.referenceFormStatus === 'NO'; title = 'REFERENCE FORM PENDING'; }
+
+    const matches = all.filter(filterFn);
+    if (!matches.length) {
+      html = '<p class="dash-sub-empty">NONE PENDING</p>';
+    } else {
+      html = matches.map(p =>
+        '<button class="result-item" data-key="' + p.shopNumber + '">' +
+          '<div><div class="shop">' + p.shopNumber + '</div><div class="firm">' + (p.firmName || '\u2014') + '</div></div>' +
+          '<span class="pill no">PENDING</span>' +
+        '</button>'
+      ).join('');
+    }
+  }
+
+  dashTitle.textContent = title;
+  dashListArea.innerHTML = html;
+  dashListArea.querySelectorAll('.result-item').forEach(btn => {
+    btn.onclick = () => {
+      closeDashboard();
+      searchInput.value = btn.dataset.key;
+      renderSearch(btn.dataset.key);
+    };
+  });
+
+  searchView.style.display = 'none';
+  formView.style.display = 'none';
+  dashboardView.style.display = 'block';
+}
+
+function closeDashboard() {
+  dashboardView.style.display = 'none';
+  searchView.style.display = 'block';
+}
+
+// ---------- Search / Detail view ----------
+
 function renderSearch(selectedKey) {
+  updateDashboardCounts();
+
   const q = searchInput.value.trim().toUpperCase();
   countText.textContent = Object.keys(parties).length + ' PARTIES SAVED';
 
@@ -491,6 +626,11 @@ partyForm.addEventListener('submit', (e) => {
 
 document.getElementById('addFab').onclick = () => openForm(null);
 document.getElementById('backBtn').onclick = closeForm;
+document.getElementById('dashBackBtn').onclick = closeDashboard;
+document.getElementById('boxPossession').onclick = () => openDashboardList('possession');
+document.getElementById('boxSecurity').onclick = () => openDashboardList('security');
+document.getElementById('boxAgreement').onclick = () => openDashboardList('agreement');
+document.getElementById('boxReference').onclick = () => openDashboardList('reference');
 searchInput.addEventListener('input', () => renderSearch());
 
 loadData();
