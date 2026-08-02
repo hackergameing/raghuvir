@@ -232,16 +232,12 @@ const FIELD_DEFS = [
   { key: "maintenanceBillStatus", label: "MAINTENANCE BILL", type: "bool" },
 ];
 
-// =========================================================
-// GOOGLE SHEET (Apps Script) URL - yaha apna Web App URL paste karo
-// (Apps Script me Deploy > New deployment > Web app se milega)
-// =========================================================
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLl1SCzWSGXzjuziG7s6RMAiE54KEtgL5kZazSPD48i3Y56U3RNdXaysWbF1aW97TI/exec";
 
 let parties = {};
 let editingKey = null;
 let isSaving = false;
-let currentViewKey = null; // abhi jo shop detail screen pe khula hai uska number
+let currentViewKey = null;
 
 const searchView = document.getElementById('searchView');
 const formView = document.getElementById('formView');
@@ -270,15 +266,12 @@ async function loadData() {
   }
   renderSearch();
 
-  // Har 6 second me background me Sheet check karo, taaki doosron ka add/update kiya data bhi dikhe
   setInterval(async () => {
-    if (isSaving || formView.style.display === 'block' || dashboardView.style.display === 'block') return; // form/dashboard khula ho to disturb mat karo
+    if (isSaving || formView.style.display === 'block' || dashboardView.style.display === 'block') return;
     try {
       parties = await fetchFromSheet();
-      renderSearch(currentViewKey || undefined); // jo detail khuli hai wahi refresh karo, list pe wapas mat bhejo
-    } catch (e) {
-      // silently ignore, next try me fir chalega
-    }
+      renderSearch(currentViewKey || undefined);
+    } catch (e) {}
   }, 6000);
 }
 
@@ -286,7 +279,7 @@ function syncToStorage() {
   isSaving = true;
   fetch(APPS_SCRIPT_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' }, // preflight se bachne ke liye text/plain
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify(parties)
   }).catch((e) => {
     console.error('Sync failed', e);
@@ -298,8 +291,6 @@ function showMsg(text) {
   msgArea.innerHTML = '<div class="msg">' + text + '</div>';
   setTimeout(() => { msgArea.innerHTML = ''; }, 2500);
 }
-
-// ---------- Dashboard (Possession Expiry / Security / Agreement / Reference) ----------
 
 function getExpiryDate(possessionDateStr) {
   const d = new Date(possessionDateStr);
@@ -384,8 +375,6 @@ function closeDashboard() {
   searchView.style.display = 'block';
 }
 
-// ---------- Search / Detail view ----------
-
 function renderSearch(selectedKey) {
   updateDashboardCounts();
 
@@ -395,7 +384,6 @@ function renderSearch(selectedKey) {
   if (selectedKey && parties[selectedKey]) {
     currentViewKey = selectedKey;
 
-    // Agar "OLD DATA" (history) pehle se khula hai, to refresh ke baad bhi khula rakho
     const existingHistory = resultArea.querySelector('.history');
     const wasHistoryOpen = existingHistory ? existingHistory.open : false;
 
@@ -416,7 +404,7 @@ function renderSearch(selectedKey) {
     return;
   }
 
-  currentViewKey = null; // koi detail khuli nahi hai, list/search view hai
+  currentViewKey = null;
 
   if (!q) {
     resultArea.className = 'empty';
@@ -445,10 +433,13 @@ function renderSearch(selectedKey) {
   });
 }
 
+// Updated cleanPhone function to return +91 prefix instead of 91
 function cleanPhone(raw) {
   let digits = (raw || '').replace(/\D/g, '');
   if (digits.length === 11 && digits.startsWith('0')) digits = digits.slice(1);
-  if (digits.length === 10) digits = '91' + digits;
+  if (digits.length === 10) digits = '+91' + digits;
+  else if (digits.length === 12 && digits.startsWith('91')) digits = '+' + digits;
+  else if (digits.length > 0 && !digits.startsWith('+')) digits = '+' + digits;
   return digits;
 }
 
@@ -477,7 +468,7 @@ function renderCard(p) {
           '<a class="phone-btn call" href="tel:' + digits + '">' +
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.362 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.338 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>' +
             'CALL</a>' +
-          '<a class="phone-btn whatsapp" href="https://wa.me/' + digits + '" target="_blank" rel="noopener">' +
+          '<a class="phone-btn whatsapp" href="https://wa.me/' + digits.replace('+', '') + '" target="_blank" rel="noopener">' +
             '<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M17.6 6.32A7.85 7.85 0 0 0 12.05 4a7.94 7.94 0 0 0-6.9 11.9L4 20l4.2-1.1a7.9 7.9 0 0 0 3.85 1h.01a7.94 7.94 0 0 0 5.54-13.58zm-5.55 12.2a6.57 6.57 0 0 1-3.35-.92l-.24-.14-2.5.65.67-2.43-.16-.25a6.6 6.6 0 1 1 12.24-3.5 6.57 6.57 0 0 1-6.66 6.59zm3.6-4.93c-.2-.1-1.17-.58-1.35-.64s-.31-.1-.44.1-.51.64-.62.77-.23.15-.42.05a5.4 5.4 0 0 1-2.7-2.36c-.2-.35.2-.32.58-1.08.06-.13.03-.24-.02-.34s-.44-1.06-.6-1.45c-.16-.38-.32-.33-.44-.34h-.38a.72.72 0 0 0-.52.25 2.2 2.2 0 0 0-.68 1.63c0 .96.7 1.89.8 2.02.1.13 1.38 2.1 3.34 2.95.47.2.83.32 1.11.41.47.15.9.13 1.24.08.38-.06 1.17-.48 1.33-.94s.16-.86.11-.94-.18-.13-.38-.23z"/></svg>' +
             'WHATSAPP</a>' +
         '</div>' +
@@ -612,7 +603,6 @@ partyForm.addEventListener('submit', (e) => {
 
   const existing = parties[shopNumber];
   if (existing) {
-    // keep old data before overwriting, with a timestamp
     const oldSnapshot = {};
     FIELD_DEFS.forEach(f => { oldSnapshot[f.key] = existing[f.key]; });
     oldSnapshot.shopNumber = existing.shopNumber;
