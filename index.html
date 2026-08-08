@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Raghuvir Scarlett - Shop Directory</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -63,12 +65,15 @@
   .result-item .firm { color: #94a3b8; font-size: 12px; margin-top: 2px; font-weight: 500; }
 
   .card { background: #0f172a; border: 1px solid #334155; border-radius: 16px; overflow: hidden; }
-  .card-head { background: #1e293b; padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #334155; }
+  .card-head { background: #1e293b; padding: 16px 20px; display: flex; align-items: flex-start; justify-content: space-between; border-bottom: 1px solid #334155; gap: 12px; }
   .card-head .label { color: #fbbf24; font-size: 11px; letter-spacing: 0.15em; font-weight: 800; }
   .card-head .shopnum { font-size: 24px; font-weight: 800; margin-top: 2px; }
+  .shopnum-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+  .shopnum-chip { background: #0f172a; border: 1px solid #f59e0b; color: #fbbf24; font-size: 13px; font-weight: 800;
+    padding: 5px 10px; border-radius: 8px; }
   .update-btn { display: flex; align-items: center; gap: 6px; background: #f59e0b; color: #020617;
     font-weight: 800; font-size: 12px; letter-spacing: 0.03em; padding: 10px 14px; border-radius: 10px;
-    border: none; cursor: pointer; }
+    border: none; cursor: pointer; flex-shrink: 0; }
   .update-btn:hover { background: #fbbf24; }
 
   .row { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px;
@@ -124,6 +129,17 @@
   .field { margin: 16px 0; }
   .field label { display: block; color: #fbbf24; font-size: 11px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 6px; }
   .field.muted label { color: #cbd5e1; }
+  .field-hint { color: #64748b; font-size: 11px; margin-top: 6px; font-weight: 600; }
+  .chip-editor { background: #0f172a; border: 2px solid #334155; border-radius: 12px; padding: 10px; }
+  .chip-list { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; }
+  .chip-list:empty { margin-bottom: 0; }
+  .edit-chip { display: flex; align-items: center; gap: 6px; background: #1e293b; border: 1px solid #f59e0b;
+    color: #fbbf24; font-size: 13px; font-weight: 800; padding: 6px 6px 6px 12px; border-radius: 999px; }
+  .edit-chip button { background: #f59e0b; color: #020617; border: none; width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; font-weight: 900; line-height: 1; }
+  .edit-chip button:hover { background: #fbbf24; }
+  #f_shopAdd { border: none; background: transparent; color: #fff; padding: 8px 4px; font-size: 15px; font-weight: 600; }
+  #f_shopAdd:focus { outline: none; }
   .bool-row { display: flex; gap: 8px; }
   .bool-btn { flex: 1; padding: 12px; border-radius: 10px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em;
     border: 2px solid #334155; background: #0f172a; color: #94a3b8; cursor: pointer; }
@@ -134,6 +150,11 @@
   .save-btn:hover { background: #fbbf24; }
   input:disabled { opacity: 0.7; }
   .dash-sub-empty { text-align: center; margin-top: 30px; color: #64748b; font-size: 13px; font-weight: 600; }
+  .pdf-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    background: #dc2626; color: #fff; font-weight: 800; font-size: 13px; letter-spacing: 0.03em;
+    padding: 14px; border-radius: 12px; border: none; cursor: pointer; margin: 14px 0; }
+  .pdf-btn:hover { background: #ef4444; }
+  .pdf-btn:disabled { opacity: 0.6; cursor: default; }
 </style>
 
 </head>
@@ -205,6 +226,7 @@
     <h2 id="dashTitle">POSSESSION EXPIRY</h2>
   </div>
   <div class="wrap">
+    <div id="dashActionArea"></div>
     <div id="dashListArea"></div>
   </div>
 </div>
@@ -234,10 +256,14 @@ const FIELD_DEFS = [
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLl1SCzWSGXzjuziG7s6RMAiE54KEtgL5kZazSPD48i3Y56U3RNdXaysWbF1aW97TI/exec";
 
+// parties is now keyed by an internal partyId (NOT shop number).
+// Each party record has: { partyId, shopNumbers: [ "G-101", "G-102", ... ], ...FIELD_DEFS, history: [...] }
+// This lets one party (same firm/owner) hold several shop numbers without duplicating data.
 let parties = {};
-let editingKey = null;
+let editingKey = null; // partyId being edited, or null for new
 let isSaving = false;
-let currentViewKey = null;
+let currentViewKey = null; // shop number currently shown in the card (resolved to a party at render time)
+let formShopNumbers = []; // working list of shop numbers while the add/update form is open
 
 const searchView = document.getElementById('searchView');
 const formView = document.getElementById('formView');
@@ -250,6 +276,7 @@ const partyForm = document.getElementById('partyForm');
 const formTitle = document.getElementById('formTitle');
 const formErr = document.getElementById('formErr');
 const dashTitle = document.getElementById('dashTitle');
+const dashActionArea = document.getElementById('dashActionArea');
 const dashListArea = document.getElementById('dashListArea');
 
 async function fetchFromSheet() {
@@ -261,6 +288,7 @@ async function fetchFromSheet() {
 async function loadData() {
   try {
     parties = await fetchFromSheet();
+    migrateOldDataIfNeeded();
   } catch (e) {
     console.error('Load failed', e);
   }
@@ -270,9 +298,38 @@ async function loadData() {
     if (isSaving || formView.style.display === 'block' || dashboardView.style.display === 'block') return;
     try {
       parties = await fetchFromSheet();
+      migrateOldDataIfNeeded();
       renderSearch(currentViewKey || undefined);
     } catch (e) {}
   }, 6000);
+}
+
+// Backward compatibility: if old records (single "shopNumber" string, keyed by shop number) are
+// still in the sheet, convert them in memory to the new { shopNumbers: [...] } shape so nothing breaks.
+function migrateOldDataIfNeeded() {
+  let changed = false;
+  const migrated = {};
+  Object.keys(parties).forEach(key => {
+    const rec = parties[key];
+    if (rec && !rec.shopNumbers && rec.shopNumber) {
+      const newId = generatePartyId();
+      migrated[newId] = Object.assign({}, rec, {
+        partyId: newId,
+        shopNumbers: [rec.shopNumber]
+      });
+      delete migrated[newId].shopNumber;
+      changed = true;
+    } else if (rec) {
+      if (!rec.partyId) rec.partyId = key;
+      migrated[key] = rec;
+    }
+  });
+  parties = migrated;
+  if (changed) syncToStorage();
+}
+
+function generatePartyId() {
+  return 'P' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 }
 
 function syncToStorage() {
@@ -302,6 +359,18 @@ function formatDateDisplay(d) {
   return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+// Find which party (if any) already owns a given shop number.
+// excludeKey lets edit-mode ignore the party currently being edited.
+function findPartyKeyForShop(shopNo, excludeKey) {
+  const upper = shopNo.toUpperCase();
+  for (const key in parties) {
+    if (excludeKey && key === excludeKey) continue;
+    const nums = parties[key].shopNumbers || [];
+    if (nums.includes(upper)) return key;
+  }
+  return null;
+}
+
 function updateDashboardCounts() {
   const all = Object.values(parties);
   const securityPending = all.filter(p => p.securityDepositStatus === 'NO').length;
@@ -314,10 +383,15 @@ function updateDashboardCounts() {
   document.getElementById('numReference').textContent = referencePending;
 }
 
+function shopsLabel(p) {
+  return (p.shopNumbers || []).join(', ');
+}
+
 function openDashboardList(type) {
   const all = Object.values(parties);
   let title = '';
   let html = '';
+  dashActionArea.innerHTML = '';
 
   if (type === 'possession') {
     title = 'POSSESSION EXPIRY (DATE WISE)';
@@ -330,11 +404,27 @@ function openDashboardList(type) {
       const today = new Date();
       html = withDate.map(({ p, expiry }) => {
         const expired = expiry < today;
-        return '<button class="result-item" data-key="' + p.shopNumber + '">' +
-          '<div><div class="shop">' + p.shopNumber + '</div><div class="firm">' + (p.firmName || '\u2014') + ' &middot; POSSESSION: ' + p.possessionDate + '</div></div>' +
+        return '<button class="result-item" data-key="' + (p.shopNumbers[0] || '') + '">' +
+          '<div><div class="shop">' + shopsLabel(p) + '</div><div class="firm">' + (p.firmName || '\u2014') + ' &middot; POSSESSION: ' + p.possessionDate + '</div></div>' +
           '<span class="pill ' + (expired ? 'no' : 'yes') + '">' + (expired ? 'EXPIRED' : formatDateDisplay(expiry)) + '</span>' +
         '</button>';
       }).join('');
+
+      // Entries whose expiry date falls in the current calendar month/year
+      const today2 = new Date();
+      const currentMonthList = withDate.filter(({ expiry }) =>
+        expiry.getMonth() === today2.getMonth() && expiry.getFullYear() === today2.getFullYear()
+      );
+
+      if (currentMonthList.length) {
+        const monthName = today2.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+        dashActionArea.innerHTML =
+          '<button class="pdf-btn" id="downloadPdfBtn">' +
+            '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v13m0 0-4-4m4 4 4-4M4 21h16"/></svg>' +
+            'DOWNLOAD ' + monthName.toUpperCase() + ' EXPIRY PDF (' + currentMonthList.length + ')' +
+          '</button>';
+        document.getElementById('downloadPdfBtn').onclick = () => downloadPossessionExpiryPdf(currentMonthList, monthName);
+      }
     }
   } else {
     let filterFn;
@@ -347,8 +437,8 @@ function openDashboardList(type) {
       html = '<p class="dash-sub-empty">NONE PENDING</p>';
     } else {
       html = matches.map(p =>
-        '<button class="result-item" data-key="' + p.shopNumber + '">' +
-          '<div><div class="shop">' + p.shopNumber + '</div><div class="firm">' + (p.firmName || '\u2014') + '</div></div>' +
+        '<button class="result-item" data-key="' + (p.shopNumbers[0] || '') + '">' +
+          '<div><div class="shop">' + shopsLabel(p) + '</div><div class="firm">' + (p.firmName || '\u2014') + '</div></div>' +
           '<span class="pill no">PENDING</span>' +
         '</button>'
       ).join('');
@@ -370,35 +460,74 @@ function openDashboardList(type) {
   dashboardView.style.display = 'block';
 }
 
+function downloadPossessionExpiryPdf(list, monthName) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+  doc.setFontSize(16);
+  doc.setTextColor(20, 20, 20);
+  doc.text('RAGHUVIR SCARLETT - POSSESSION EXPIRY (' + monthName.toUpperCase() + ')', 40, 40);
+  doc.setFontSize(10);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Generated on ' + new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), 40, 58);
+
+  const rows = list
+    .slice()
+    .sort((a, b) => a.expiry - b.expiry)
+    .map(({ p, expiry }) => [
+      (p.shopNumbers || []).join(', '),
+      p.firmName || '-',
+      p.ownerName || '-',
+      p.ownerMobile || '-',
+      p.possessionDate || '-',
+      formatDateDisplay(expiry)
+    ]);
+
+  doc.autoTable({
+    startY: 72,
+    head: [['SHOP NUMBERS', 'FIRM NAME', 'OWNER NAME', 'OWNER MOBILE', 'POSSESSION DATE', 'EXPIRY DATE']],
+    body: rows,
+    theme: 'grid',
+    styles: { fontSize: 10, cellPadding: 6, valign: 'middle' },
+    headStyles: { fillColor: [15, 23, 42], textColor: [251, 191, 36], fontStyle: 'bold' },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    margin: { left: 40, right: 40 }
+  });
+
+  doc.save('possession-expiry-' + monthName.replace(' ', '-').toLowerCase() + '.pdf');
+}
+
 function closeDashboard() {
   dashboardView.style.display = 'none';
   searchView.style.display = 'block';
 }
 
-function renderSearch(selectedKey) {
+function renderSearch(selectedShopNumber) {
   updateDashboardCounts();
 
   const q = searchInput.value.trim().toUpperCase();
   countText.textContent = Object.keys(parties).length + ' PARTIES SAVED';
 
-  if (selectedKey && parties[selectedKey]) {
-    currentViewKey = selectedKey;
+  const selectedPartyKey = selectedShopNumber ? findPartyKeyForShop(selectedShopNumber) : null;
+
+  if (selectedPartyKey && parties[selectedPartyKey]) {
+    currentViewKey = selectedShopNumber;
 
     const existingHistory = resultArea.querySelector('.history');
     const wasHistoryOpen = existingHistory ? existingHistory.open : false;
 
     resultArea.className = '';
-    resultArea.innerHTML = renderCard(parties[selectedKey]);
+    resultArea.innerHTML = renderCard(parties[selectedPartyKey]);
 
     const newHistory = resultArea.querySelector('.history');
     if (newHistory && wasHistoryOpen) newHistory.open = true;
 
-    document.getElementById('editBtn').onclick = () => openForm(selectedKey);
+    document.getElementById('editBtn').onclick = () => openForm(selectedPartyKey);
     resultArea.querySelectorAll('.h-delete-btn').forEach(btn => {
       btn.onclick = (e) => {
         e.preventDefault();
         e.stopPropagation();
-        deleteHistoryEntry(btn.dataset.shop, parseInt(btn.dataset.idx, 10));
+        deleteHistoryEntry(btn.dataset.party, parseInt(btn.dataset.idx, 10));
       };
     });
     return;
@@ -412,18 +541,28 @@ function renderSearch(selectedKey) {
     return;
   }
 
-  const matches = Object.values(parties).filter(p => p.shopNumber.toUpperCase().includes(q));
+  // Show one row per matching shop number (a party with several shops can appear multiple times,
+  // each row still opens the same shared party card).
+  const rowsData = [];
+  Object.values(parties).forEach(p => {
+    (p.shopNumbers || []).forEach(sn => {
+      if (sn.toUpperCase().includes(q)) {
+        rowsData.push({ shopNumber: sn, party: p });
+      }
+    });
+  });
 
-  if (matches.length === 0) {
+  if (rowsData.length === 0) {
     resultArea.className = 'empty';
     resultArea.innerHTML = '<p class="main">NO SHOP FOUND FOR "' + q + '"</p>';
     return;
   }
 
   resultArea.className = '';
-  resultArea.innerHTML = matches.map(p =>
-    '<button class="result-item" data-key="' + p.shopNumber + '">' +
-      '<div><div class="shop">' + p.shopNumber + '</div><div class="firm">' + (p.firmName || '\u2014') + '</div></div>' +
+  resultArea.innerHTML = rowsData.map(({ shopNumber, party }) =>
+    '<button class="result-item" data-key="' + shopNumber + '">' +
+      '<div><div class="shop">' + shopNumber + '</div><div class="firm">' + (party.firmName || '\u2014') +
+        (party.shopNumbers.length > 1 ? ' &middot; ' + party.shopNumbers.length + ' SHOPS LINKED' : '') + '</div></div>' +
       '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#64748b" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>' +
     '</button>'
   ).join('');
@@ -443,13 +582,13 @@ function cleanPhone(raw) {
   return digits;
 }
 
-function deleteHistoryEntry(shopNumber, idx) {
-  const p = parties[shopNumber];
+function deleteHistoryEntry(partyKey, idx) {
+  const p = parties[partyKey];
   if (!p || !p.history || !p.history[idx]) return;
   if (!confirm('Ye purani history entry delete karni hai? Ye wapas nahi aayegi.')) return;
   p.history.splice(idx, 1);
   syncToStorage();
-  renderSearch(shopNumber);
+  renderSearch(currentViewKey);
 }
 
 function renderCard(p) {
@@ -487,10 +626,11 @@ function renderCard(p) {
         if (!v) return;
         hrows += '<div class="h-row"><span class="k">' + f.label + '</span><span class="v">' + v + '</span></div>';
       });
+      const hShops = (h.shopNumbers || []).join(', ');
       return '<div class="history-entry">' +
         '<div class="h-head">' +
-          '<button type="button" class="h-delete-btn" data-shop="' + p.shopNumber + '" data-idx="' + idx + '" title="Delete this old data">&#10005;</button>' +
-          '<span class="h-title">OLD DATA - SHOP ' + h.shopNumber + ' (UPDATED ON ' + h.savedAt + ')</span>' +
+          '<button type="button" class="h-delete-btn" data-party="' + p.partyId + '" data-idx="' + idx + '" title="Delete this old data">&#10005;</button>' +
+          '<span class="h-title">OLD DATA - SHOP ' + hShops + ' (UPDATED ON ' + h.savedAt + ')</span>' +
         '</div>' + hrows + '</div>';
     }).join('');
     historyHtml = '<details class="history"><summary>&#9662; VIEW OLD / PREVIOUS DATA (' + p.history.length + ')</summary>' + entries + '</details>';
@@ -499,7 +639,9 @@ function renderCard(p) {
   return (
     '<div class="card">' +
       '<div class="card-head">' +
-        '<div><div class="label">SHOP NUMBER</div><div class="shopnum">' + p.shopNumber + '</div></div>' +
+        '<div><div class="label">SHOP NUMBERS</div><div class="shopnum-list">' +
+          (p.shopNumbers || []).map(s => '<span class="shopnum-chip">' + s + '</span>').join('') +
+        '</div></div>' +
         '<button class="update-btn" id="editBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>UPDATE</button>' +
       '</div>' +
       '<div>' + rows + '</div>' +
@@ -507,14 +649,20 @@ function renderCard(p) {
   );
 }
 
-function openForm(key) {
-  editingKey = key || null;
-  const data = key ? parties[key] : { shopNumber: '' };
-  formTitle.textContent = key ? 'UPDATE PARTY DETAILS' : 'ADD PARTY DETAILS';
+function openForm(partyKey) {
+  editingKey = partyKey || null;
+  const data = partyKey ? parties[partyKey] : { shopNumbers: [] };
+  formTitle.textContent = partyKey ? 'UPDATE PARTY DETAILS' : 'ADD PARTY DETAILS';
   formErr.innerHTML = '';
 
-  let html = '<div class="field"><label>SHOP NUMBER *</label>' +
-    '<input type="text" id="f_shopNumber" placeholder="e.g. G-101" value="' + (data.shopNumber || '') + '"' + (key ? ' disabled' : '') + '></div>';
+  formShopNumbers = (data.shopNumbers || []).slice();
+
+  let html = '<div class="field"><label>SHOP NUMBERS *</label>' +
+    '<div class="chip-editor">' +
+      '<div class="chip-list" id="shopChipList"></div>' +
+      '<input type="text" id="f_shopAdd" placeholder="Type shop number, press Enter or ,">' +
+    '</div>' +
+    '<div class="field-hint">EK PARTY KE 2+ DUKAN HON TO SABKO YAHAN ADD KARO. KISI DUKAN KO PARTY SE HATANA HO (JAISE VACATE HO GAYI) TO USKI CHIP PAR ✕ DABAO — WO NUMBER FIR SE FREE HO JAYEGA.</div></div>';
 
   FIELD_DEFS.forEach(f => {
     if (f.type === 'bool') {
@@ -528,7 +676,7 @@ function openForm(key) {
     }
   });
 
-  html += '<button type="submit" class="save-btn" id="saveBtn">' + (key ? 'UPDATE DETAILS' : 'SAVE DETAILS') + '</button>';
+  html += '<button type="submit" class="save-btn" id="saveBtn">' + (partyKey ? 'UPDATE DETAILS' : 'SAVE DETAILS') + '</button>';
   partyForm.innerHTML = html;
 
   FIELD_DEFS.filter(f => f.type === 'bool').forEach(f => {
@@ -543,21 +691,55 @@ function openForm(key) {
   searchView.style.display = 'none';
   formView.style.display = 'block';
 
-  if (!key) {
-    const shopNumField = document.getElementById('f_shopNumber');
-    const saveBtn = document.getElementById('saveBtn');
-    shopNumField.addEventListener('input', () => {
-      const val = shopNumField.value.trim().toUpperCase();
-      if (val && parties[val]) {
-        formErr.innerHTML = '<div class="err">SHOP ' + val + ' ALREADY EXISTS. USE UPDATE INSTEAD OF ADD.</div>';
-        saveBtn.disabled = true;
-        saveBtn.style.opacity = '0.6';
-      } else {
-        formErr.innerHTML = '';
-        saveBtn.disabled = false;
-        saveBtn.style.opacity = '1';
-      }
-    });
+  renderShopChips();
+
+  const shopAddInput = document.getElementById('f_shopAdd');
+  shopAddInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',') {
+      e.preventDefault();
+      addShopChip(shopAddInput.value);
+      shopAddInput.value = '';
+    }
+  });
+  shopAddInput.addEventListener('blur', () => {
+    if (shopAddInput.value.trim()) {
+      addShopChip(shopAddInput.value);
+      shopAddInput.value = '';
+    }
+  });
+}
+
+function addShopChip(raw) {
+  const sn = raw.trim().toUpperCase();
+  if (!sn) return;
+  if (!formShopNumbers.includes(sn)) formShopNumbers.push(sn);
+  renderShopChips();
+}
+
+function removeShopChip(sn) {
+  formShopNumbers = formShopNumbers.filter(s => s !== sn);
+  renderShopChips();
+}
+
+function renderShopChips() {
+  const list = document.getElementById('shopChipList');
+  const saveBtn = document.getElementById('saveBtn');
+  list.innerHTML = formShopNumbers.map(sn =>
+    '<span class="edit-chip">' + sn + '<button type="button" data-sn="' + sn + '" title="Remove">&#10005;</button></span>'
+  ).join('');
+  list.querySelectorAll('button').forEach(btn => {
+    btn.onclick = () => removeShopChip(btn.dataset.sn);
+  });
+
+  const conflict = formShopNumbers.find(sn => findPartyKeyForShop(sn, editingKey));
+  if (conflict) {
+    formErr.innerHTML = '<div class="err">SHOP ' + conflict + ' ALREADY LINKED TO ANOTHER PARTY. USE UPDATE ON THAT PARTY INSTEAD.</div>';
+    saveBtn.disabled = true;
+    saveBtn.style.opacity = '0.6';
+  } else {
+    formErr.innerHTML = '';
+    saveBtn.disabled = false;
+    saveBtn.style.opacity = '1';
   }
 }
 
@@ -579,19 +761,24 @@ function closeForm() {
 
 partyForm.addEventListener('submit', (e) => {
   e.preventDefault();
-  const shopNumberInput = document.getElementById('f_shopNumber');
-  const shopNumber = shopNumberInput.value.trim().toUpperCase();
-  if (!shopNumber) {
-    formErr.innerHTML = '<div class="err">SHOP NUMBER IS REQUIRED.</div>';
+  const shopAddInput = document.getElementById('f_shopAdd');
+  if (shopAddInput.value.trim()) { addShopChip(shopAddInput.value); shopAddInput.value = ''; }
+  const shopNumbers = formShopNumbers.slice();
+
+  if (!shopNumbers.length) {
+    formErr.innerHTML = '<div class="err">AT LEAST ONE SHOP NUMBER IS REQUIRED.</div>';
     return;
   }
-  if (!editingKey && parties[shopNumber]) {
-    formErr.innerHTML = '<div class="err">SHOP ' + shopNumber + ' ALREADY EXISTS. USE UPDATE INSTEAD OF ADD.</div>';
+
+  const conflict = shopNumbers.find(sn => findPartyKeyForShop(sn, editingKey));
+  if (conflict) {
+    formErr.innerHTML = '<div class="err">SHOP ' + conflict + ' ALREADY LINKED TO ANOTHER PARTY. USE UPDATE ON THAT PARTY INSTEAD.</div>';
     return;
   }
   formErr.innerHTML = '';
 
-  const record = { shopNumber };
+  const partyKey = editingKey || generatePartyId();
+  const record = { partyId: partyKey, shopNumbers };
   FIELD_DEFS.forEach(f => {
     if (f.type === 'bool') {
       record[f.key] = partyForm.dataset['sel_' + f.key] || 'NO';
@@ -601,26 +788,28 @@ partyForm.addEventListener('submit', (e) => {
     }
   });
 
-  const existing = parties[shopNumber];
+  const existing = editingKey ? parties[editingKey] : null;
   if (existing) {
     const oldSnapshot = {};
     FIELD_DEFS.forEach(f => { oldSnapshot[f.key] = existing[f.key]; });
-    oldSnapshot.shopNumber = existing.shopNumber;
+    oldSnapshot.shopNumbers = existing.shopNumbers;
     oldSnapshot.savedAt = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
     record.history = (existing.history || []).concat([oldSnapshot]);
   } else {
     record.history = [];
   }
 
-  parties[shopNumber] = record;
+  parties[partyKey] = record;
   syncToStorage();
 
   const wasEdit = !!editingKey;
   editingKey = null;
+  formShopNumbers = [];
   closeForm();
-  searchInput.value = shopNumber;
-  showMsg('SHOP ' + shopNumber + (wasEdit ? ' UPDATED' : ' SAVED'));
-  renderSearch(shopNumber);
+  const firstShop = shopNumbers[0];
+  searchInput.value = firstShop;
+  showMsg((wasEdit ? 'PARTY UPDATED (' : 'PARTY SAVED (') + shopNumbers.join(', ') + ')');
+  renderSearch(firstShop);
 });
 
 document.getElementById('addFab').onclick = () => openForm(null);
