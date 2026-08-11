@@ -155,6 +155,34 @@
     padding: 14px; border-radius: 12px; border: none; cursor: pointer; margin: 14px 0; }
   .pdf-btn:hover { background: #ef4444; }
   .pdf-btn:disabled { opacity: 0.6; cursor: default; }
+
+  /* Broker picker */
+  .broker-picker { position: relative; }
+  .broker-dropdown {
+    position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 30;
+    background: #0f172a; border: 2px solid #f59e0b; border-radius: 12px;
+    max-height: 260px; overflow-y: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  }
+  .broker-add-row { display: flex; align-items: center; gap: 8px; padding: 12px; border-bottom: 1px solid #334155;
+    color: #fbbf24; font-weight: 800; font-size: 13px; letter-spacing: 0.02em; cursor: pointer; }
+  .broker-add-row:hover { background: #1e293b; }
+  .broker-add-row .plus-circle { width: 22px; height: 22px; border-radius: 50%; background: #f59e0b; color: #020617;
+    display: flex; align-items: center; justify-content: center; font-weight: 900; flex-shrink: 0; font-size: 14px; }
+  .broker-item { padding: 10px 12px; border-bottom: 1px solid #1e293b; cursor: pointer; }
+  .broker-item:last-child { border-bottom: none; }
+  .broker-item:hover { background: #1e293b; }
+  .broker-item .b-name { font-weight: 800; font-size: 13px; color: #fff; }
+  .broker-item .b-mobile { font-size: 11px; color: #94a3b8; margin-top: 2px; font-weight: 600; }
+  .broker-empty { padding: 14px 12px; color: #64748b; font-size: 12px; font-weight: 600; text-align: center; }
+  .broker-newform { padding: 12px; }
+  .broker-newform input { width: 100%; margin-bottom: 8px; padding: 10px 12px; font-size: 14px; }
+  .broker-newform .bn-actions { display: flex; gap: 8px; }
+  .broker-newform .bn-save { flex: 1; background: #10b981; color: #fff; font-weight: 800; border: none;
+    border-radius: 8px; padding: 10px; cursor: pointer; font-size: 12px; letter-spacing: 0.02em; }
+  .broker-newform .bn-save:hover { background: #34d399; }
+  .broker-newform .bn-cancel { flex: 1; background: #334155; color: #fff; font-weight: 800; border: none;
+    border-radius: 8px; padding: 10px; cursor: pointer; font-size: 12px; letter-spacing: 0.02em; }
+  .broker-newform .bn-cancel:hover { background: #475569; }
 </style>
 
 </head>
@@ -256,6 +284,10 @@ const FIELD_DEFS = [
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyLl1SCzWSGXzjuziG7s6RMAiE54KEtgL5kZazSPD48i3Y56U3RNdXaysWbF1aW97TI/exec";
 
+// Reserved key inside the same "parties" object used to store the broker list
+// (so it persists through the exact same load/save pipeline as everything else).
+const BROKERS_KEY = "__brokers__";
+
 // parties is now keyed by an internal partyId (NOT shop number).
 // Each party record has: { partyId, shopNumbers: [ "G-101", "G-102", ... ], ...FIELD_DEFS, history: [...] }
 // This lets one party (same firm/owner) hold several shop numbers without duplicating data.
@@ -289,6 +321,7 @@ async function loadData() {
   try {
     parties = await fetchFromSheet();
     migrateOldDataIfNeeded();
+    syncBrokersFromParties();
   } catch (e) {
     console.error('Load failed', e);
   }
@@ -299,6 +332,7 @@ async function loadData() {
     try {
       parties = await fetchFromSheet();
       migrateOldDataIfNeeded();
+      syncBrokersFromParties();
       renderSearch(currentViewKey || undefined);
     } catch (e) {}
   }, 6000);
@@ -330,6 +364,61 @@ function migrateOldDataIfNeeded() {
 
 function generatePartyId() {
   return 'P' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+// All real party records, excluding the reserved broker-list entry.
+function getPartyEntries() {
+  return Object.keys(parties).filter(k => k !== BROKERS_KEY).map(k => parties[k]);
+}
+
+// Brokers explicitly added via the "+ ADD NEW BROKER" option.
+function getSavedBrokers() {
+  return (parties[BROKERS_KEY] && parties[BROKERS_KEY].list) || [];
+}
+
+// Combined, de-duplicated broker list: brokers already used on any party + manually added ones.
+function getAllBrokers() {
+  const map = new Map();
+  getPartyEntries().forEach(p => {
+    if (p.brokerName) {
+      const key = p.brokerName + '|' + (p.brokerMobile || '');
+      if (!map.has(key)) map.set(key, { name: p.brokerName, mobile: p.brokerMobile || '' });
+    }
+  });
+  getSavedBrokers().forEach(b => {
+    const key = b.name + '|' + (b.mobile || '');
+    if (!map.has(key)) map.set(key, b);
+  });
+  return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function addNewBroker(name, mobile) {
+  const list = getSavedBrokers().slice();
+  list.push({ name: name.trim().toUpperCase(), mobile: mobile.trim() });
+  parties[BROKERS_KEY] = { list };
+  syncToStorage();
+}
+
+// Pulls broker names/mobiles already present on existing parties into the saved broker list,
+// so every broker ever entered shows up in the picker (not just newly added ones).
+function syncBrokersFromParties() {
+  const saved = getSavedBrokers().slice();
+  const existingKeys = new Set(saved.map(b => b.name + '|' + (b.mobile || '')));
+  let changed = false;
+  getPartyEntries().forEach(p => {
+    if (p.brokerName) {
+      const key = p.brokerName + '|' + (p.brokerMobile || '');
+      if (!existingKeys.has(key)) {
+        saved.push({ name: p.brokerName, mobile: p.brokerMobile || '' });
+        existingKeys.add(key);
+        changed = true;
+      }
+    }
+  });
+  if (changed) {
+    parties[BROKERS_KEY] = { list: saved };
+    syncToStorage();
+  }
 }
 
 function syncToStorage() {
@@ -364,6 +453,7 @@ function formatDateDisplay(d) {
 function findPartyKeyForShop(shopNo, excludeKey) {
   const upper = shopNo.toUpperCase();
   for (const key in parties) {
+    if (key === BROKERS_KEY) continue;
     if (excludeKey && key === excludeKey) continue;
     const nums = parties[key].shopNumbers || [];
     if (nums.includes(upper)) return key;
@@ -372,7 +462,7 @@ function findPartyKeyForShop(shopNo, excludeKey) {
 }
 
 function updateDashboardCounts() {
-  const all = Object.values(parties);
+  const all = getPartyEntries();
   const securityPending = all.filter(p => p.securityDepositStatus === 'NO').length;
   const agreementPending = all.filter(p => p.agreementStatus === 'NO').length;
   const referencePending = all.filter(p => p.referenceFormStatus === 'NO').length;
@@ -388,7 +478,7 @@ function shopsLabel(p) {
 }
 
 function openDashboardList(type) {
-  const all = Object.values(parties);
+  const all = getPartyEntries();
   let title = '';
   let html = '';
   dashActionArea.innerHTML = '';
@@ -506,7 +596,7 @@ function renderSearch(selectedShopNumber) {
   updateDashboardCounts();
 
   const q = searchInput.value.trim().toUpperCase();
-  countText.textContent = Object.keys(parties).length + ' PARTIES SAVED';
+  countText.textContent = getPartyEntries().length + ' PARTIES SAVED';
 
   const selectedPartyKey = selectedShopNumber ? findPartyKeyForShop(selectedShopNumber) : null;
 
@@ -537,14 +627,14 @@ function renderSearch(selectedShopNumber) {
 
   if (!q) {
     resultArea.className = 'empty';
-    resultArea.innerHTML = '<p class="main">ENTER A SHOP NUMBER TO SEARCH</p><p class="sub">' + Object.keys(parties).length + ' PARTIES SAVED</p>';
+    resultArea.innerHTML = '<p class="main">ENTER A SHOP NUMBER TO SEARCH</p><p class="sub">' + getPartyEntries().length + ' PARTIES SAVED</p>';
     return;
   }
 
   // Show one row per matching shop number (a party with several shops can appear multiple times,
   // each row still opens the same shared party card).
   const rowsData = [];
-  Object.values(parties).forEach(p => {
+  getPartyEntries().forEach(p => {
     (p.shopNumbers || []).forEach(sn => {
       if (sn.toUpperCase().includes(q)) {
         rowsData.push({ shopNumber: sn, party: p });
@@ -670,6 +760,14 @@ function openForm(partyKey) {
         '<button type="button" class="bool-btn" data-field="' + f.key + '" data-val="YES">YES</button>' +
         '<button type="button" class="bool-btn" data-field="' + f.key + '" data-val="NO">NO</button>' +
       '</div></div>';
+    } else if (f.key === 'brokerName') {
+      html += '<div class="field muted"><label>' + f.label + '</label>' +
+        '<div class="broker-picker" id="brokerPicker">' +
+          '<input type="text" id="f_brokerName" placeholder="TAP TO SELECT OR TYPE BROKER" autocomplete="off" value="' + (data.brokerName || '') + '">' +
+          '<div class="broker-dropdown" id="brokerDropdown" style="display:none;"></div>' +
+        '</div>' +
+        '<div class="field-hint">BROKER PAR TAP KARO TO SAVED BROKERS DIKHENGE. NAYA BROKER ADD KARNE KE LIYE LIST ME UPAR "+" DABAO. SELECT KARTE HI NEECHE MOBILE NUMBER AUTO FILL HO JAYEGA.</div>' +
+      '</div>';
     } else {
       html += '<div class="field muted"><label>' + f.label + '</label>' +
         '<input type="' + (f.type === 'date' ? 'date' : 'text') + '" id="f_' + f.key + '" value="' + (data[f.key] || '') + '"></div>';
@@ -687,6 +785,8 @@ function openForm(partyKey) {
   partyForm.querySelectorAll('.bool-btn').forEach(btn => {
     btn.onclick = () => updateBoolButtons(btn.dataset.field, btn.dataset.val);
   });
+
+  setupBrokerPicker();
 
   searchView.style.display = 'none';
   formView.style.display = 'block';
@@ -708,6 +808,97 @@ function openForm(partyKey) {
     }
   });
 }
+
+// --- Broker picker ---
+
+function setupBrokerPicker() {
+  const input = document.getElementById('f_brokerName');
+  if (!input) return;
+  input.addEventListener('focus', () => renderBrokerDropdown(input.value));
+  input.addEventListener('input', () => renderBrokerDropdown(input.value));
+}
+
+function renderBrokerDropdown(filterText) {
+  const dropdown = document.getElementById('brokerDropdown');
+  if (!dropdown) return;
+  const q = (filterText || '').trim().toUpperCase();
+  const brokers = getAllBrokers().filter(b => !q || b.name.includes(q));
+
+  let html = '<div class="broker-add-row" id="brokerAddRow"><span class="plus-circle">+</span> ADD NEW BROKER</div>';
+  if (!brokers.length) {
+    html += '<div class="broker-empty">KOI SAVED BROKER NAHI MILA</div>';
+  } else {
+    html += brokers.map(b =>
+      '<div class="broker-item" data-name="' + b.name.replace(/"/g, '&quot;') + '" data-mobile="' + (b.mobile || '').replace(/"/g, '&quot;') + '">' +
+        '<div class="b-name">' + b.name + '</div>' +
+        (b.mobile ? '<div class="b-mobile">' + b.mobile + '</div>' : '') +
+      '</div>'
+    ).join('');
+  }
+
+  dropdown.innerHTML = html;
+  dropdown.style.display = 'block';
+
+  const addRow = document.getElementById('brokerAddRow');
+  if (addRow) addRow.onclick = (e) => { e.stopPropagation(); renderAddBrokerForm(); };
+
+  dropdown.querySelectorAll('.broker-item').forEach(item => {
+    item.onclick = (e) => {
+      e.stopPropagation();
+      selectBroker(item.dataset.name, item.dataset.mobile);
+    };
+  });
+}
+
+function renderAddBrokerForm() {
+  const dropdown = document.getElementById('brokerDropdown');
+  if (!dropdown) return;
+  dropdown.innerHTML =
+    '<div class="broker-newform">' +
+      '<input type="text" id="newBrokerName" placeholder="BROKER NAME" autocomplete="off">' +
+      '<input type="text" id="newBrokerMobile" placeholder="BROKER MOBILE NUMBER" autocomplete="off">' +
+      '<div class="bn-actions">' +
+        '<button type="button" class="bn-save" id="bnSaveBtn">SAVE BROKER</button>' +
+        '<button type="button" class="bn-cancel" id="bnCancelBtn">CANCEL</button>' +
+      '</div>' +
+    '</div>';
+
+  document.getElementById('newBrokerName').focus();
+
+  document.getElementById('bnSaveBtn').onclick = (e) => {
+    e.stopPropagation();
+    const nameEl = document.getElementById('newBrokerName');
+    const mobileEl = document.getElementById('newBrokerMobile');
+    const name = nameEl.value.trim();
+    const mobile = mobileEl.value.trim();
+    if (!name) { nameEl.focus(); return; }
+    addNewBroker(name, mobile);
+    selectBroker(name.toUpperCase(), mobile);
+  };
+  document.getElementById('bnCancelBtn').onclick = (e) => {
+    e.stopPropagation();
+    const input = document.getElementById('f_brokerName');
+    renderBrokerDropdown(input ? input.value : '');
+  };
+}
+
+function selectBroker(name, mobile) {
+  const nameInput = document.getElementById('f_brokerName');
+  const mobileInput = document.getElementById('f_brokerMobile');
+  if (nameInput) nameInput.value = name;
+  if (mobileInput) mobileInput.value = mobile || '';
+  const dropdown = document.getElementById('brokerDropdown');
+  if (dropdown) dropdown.style.display = 'none';
+}
+
+// Close the broker dropdown when tapping anywhere outside it.
+document.addEventListener('click', (e) => {
+  const dropdown = document.getElementById('brokerDropdown');
+  const picker = document.getElementById('brokerPicker');
+  if (dropdown && dropdown.style.display === 'block' && picker && !picker.contains(e.target)) {
+    dropdown.style.display = 'none';
+  }
+});
 
 function addShopChip(raw) {
   const sn = raw.trim().toUpperCase();
