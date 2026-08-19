@@ -224,6 +224,11 @@
       <p class="main">ENTER A SHOP NUMBER TO SEARCH</p>
       <p class="sub" id="countText">0 PARTIES SAVED</p>
     </div>
+
+    <button class="pdf-btn" id="downloadAllBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v13m0 0-4-4m4 4 4-4M4 21h16"/></svg>
+      DOWNLOAD ALL PARTY DETAILS
+    </button>
   </div>
 
   <button class="fab" id="addFab" title="Add party details">
@@ -585,6 +590,101 @@ function downloadPossessionExpiryPdf(list, monthName) {
   });
 
   doc.save('possession-expiry-' + monthName.replace(' ', '-').toLowerCase() + '.pdf');
+}
+
+// --- Serial order helper for shop numbers: G shops first, then UG shops, then plain numeric (1-7) shops,
+// then anything else. Within each group, sorted by their numeric part (and alphabetically as a tiebreak).
+function shopSortKey(rawSn) {
+  const sn = (rawSn || '').trim().toUpperCase();
+  let cat, numPart;
+  if (/^UG/.test(sn)) {
+    cat = 1;
+    numPart = sn.replace(/^UG[-\s]?/, '');
+  } else if (/^G/.test(sn)) {
+    cat = 0;
+    numPart = sn.replace(/^G[-\s]?/, '');
+  } else if (/^\d+$/.test(sn)) {
+    cat = 2;
+    numPart = sn;
+  } else {
+    cat = 3;
+    numPart = sn;
+  }
+  const num = parseFloat(numPart);
+  return { cat: cat, num: isNaN(num) ? 0 : num, raw: sn };
+}
+
+// Best (earliest-in-serial) sort key for a party, based on its lowest-ranked shop number.
+function partySortKey(p) {
+  const keys = (p.shopNumbers || []).map(shopSortKey);
+  if (!keys.length) return { cat: 4, num: 0, raw: '' };
+  keys.sort((a, b) => a.cat - b.cat || a.num - b.num || a.raw.localeCompare(b.raw));
+  return keys[0];
+}
+
+// --- Download ALL party details as a single portrait PDF, serial-ordered (G, then UG, then 1-7),
+// excluding all YES/NO status fields as well as rental/partner name & mobile, and including possession expiry.
+function downloadAllPartiesPdf() {
+  const all = getPartyEntries().slice();
+  if (!all.length) { showMsg('NO PARTY DATA TO DOWNLOAD'); return; }
+
+  all.sort((a, b) => {
+    const ka = partySortKey(a), kb = partySortKey(b);
+    if (ka.cat !== kb.cat) return ka.cat - kb.cat;
+    if (ka.num !== kb.num) return ka.num - kb.num;
+    return ka.raw.localeCompare(kb.raw);
+  });
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+
+  doc.setFontSize(14);
+  doc.setTextColor(20, 20, 20);
+  doc.text('RAGHUVIR SCARLETT - ALL PARTY DETAILS', 28, 30);
+  doc.setFontSize(9);
+  doc.setTextColor(100, 100, 100);
+  doc.text('Generated on ' + new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }), 28, 44);
+
+  const rows = all.map(p => {
+    const expiry = p.possessionDate ? formatDateDisplay(getExpiryDate(p.possessionDate)) : '-';
+    return [
+      (p.shopNumbers || []).join(', ') || '-',
+      p.firmName || '-',
+      p.gstNo || '-',
+      p.ownerName || '-',
+      p.ownerMobile || '-',
+      p.officeManagerNumber || '-',
+      p.brokerName || '-',
+      p.brokerMobile || '-',
+      p.possessionDate || '-',
+      expiry
+    ];
+  });
+
+  doc.autoTable({
+    startY: 56,
+    head: [['SHOP NO', 'FIRM NAME', 'GST NO', 'OWNER NAME', 'OWNER MOBILE', 'OFFICE MGR NO', 'BROKER NAME', 'BROKER MOBILE', 'POSSESSION DATE', 'POSSESSION EXPIRY']],
+    body: rows,
+    theme: 'grid',
+    styles: { fontSize: 6.5, cellPadding: 3, valign: 'middle', overflow: 'linebreak' },
+    headStyles: { fillColor: [15, 23, 42], textColor: [251, 191, 36], fontStyle: 'bold', fontSize: 6.5 },
+    alternateRowStyles: { fillColor: [245, 245, 245] },
+    margin: { left: 24, right: 24 },
+    columnStyles: {
+      0: { cellWidth: 42 },
+      1: { cellWidth: 62 },
+      2: { cellWidth: 55 },
+      3: { cellWidth: 58 },
+      4: { cellWidth: 52 },
+      5: { cellWidth: 50 },
+      6: { cellWidth: 52 },
+      7: { cellWidth: 52 },
+      8: { cellWidth: 48 },
+      9: { cellWidth: 48 }
+    }
+  });
+
+  doc.save('all-party-details.pdf');
 }
 
 function closeDashboard() {
@@ -1010,6 +1110,7 @@ document.getElementById('boxPossession').onclick = () => openDashboardList('poss
 document.getElementById('boxSecurity').onclick = () => openDashboardList('security');
 document.getElementById('boxAgreement').onclick = () => openDashboardList('agreement');
 document.getElementById('boxReference').onclick = () => openDashboardList('reference');
+document.getElementById('downloadAllBtn').onclick = downloadAllPartiesPdf;
 searchInput.addEventListener('input', () => renderSearch());
 
 loadData();
