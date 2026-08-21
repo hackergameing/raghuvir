@@ -213,7 +213,7 @@
 
     <div class="search-box">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
-      <input type="text" id="searchInput" placeholder="SEARCH SHOP NUMBER" autocomplete="off">
+      <input type="text" id="searchInput" placeholder="SEARCH SHOP NUMBER, FIRM OR OWNER NAME" autocomplete="off">
     </div>
 
     <div class="dash-grid">
@@ -237,7 +237,7 @@
 
     <div id="msgArea"></div>
     <div id="resultArea" class="empty">
-      <p class="main">ENTER A SHOP NUMBER TO SEARCH</p>
+      <p class="main">ENTER A SHOP NUMBER, FIRM NAME OR OWNER NAME TO SEARCH</p>
       <p class="sub" id="countText">0 PARTIES SAVED</p>
     </div>
 
@@ -1063,16 +1063,19 @@ function renderSearch(selectedShopNumber) {
 
   if (!q) {
     resultArea.className = 'empty';
-    resultArea.innerHTML = '<p class="main">ENTER A SHOP NUMBER TO SEARCH</p><p class="sub">' + getPartyEntries().length + ' PARTIES SAVED</p>';
+    resultArea.innerHTML = '<p class="main">ENTER A SHOP NUMBER, FIRM NAME OR OWNER NAME TO SEARCH</p><p class="sub">' + getPartyEntries().length + ' PARTIES SAVED</p>';
     return;
   }
 
-  // Show one row per matching shop number (a party with several shops can appear multiple times,
-  // each row still opens the same shared party card).
+  // Show one row per matching shop number. A shop's row is included if the shop number itself
+  // matches the query, OR if the party's firm name or owner name matches the query
+  // (so searching by firm/owner surfaces all of that party's linked shops too).
   const rowsData = [];
   getPartyEntries().forEach(p => {
+    const firmMatch = (p.firmName || '').toUpperCase().includes(q);
+    const ownerMatch = (p.ownerName || '').toUpperCase().includes(q);
     (p.shopNumbers || []).forEach(sn => {
-      if (sn.toUpperCase().includes(q)) {
+      if (sn.toUpperCase().includes(q) || firmMatch || ownerMatch) {
         rowsData.push({ shopNumber: sn, party: p });
       }
     });
