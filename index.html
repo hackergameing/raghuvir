@@ -6,6 +6,7 @@
 <title>Raghuvir Scarlett - Shop Directory</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body {
@@ -120,7 +121,7 @@
 
   footer { text-align: center; padding: 20px 0; color: #475569; font-size: 10px; letter-spacing: 0.1em; font-weight: 600; }
 
-  #formView, #dashboardView { display: none; min-height: 100vh; padding-bottom: 40px; }
+  #formView, #dashboardView, #bulkView { display: none; min-height: 100vh; padding-bottom: 40px; }
   .form-header { position: sticky; top: 0; background: #020617; border-bottom: 1px solid #334155;
     padding: 16px; display: flex; align-items: center; gap: 12px; z-index: 10; }
   .back-btn { background: none; border: none; color: #cbd5e1; cursor: pointer; display: flex; }
@@ -155,6 +156,21 @@
     padding: 14px; border-radius: 12px; border: none; cursor: pointer; margin: 14px 0; }
   .pdf-btn:hover { background: #ef4444; }
   .pdf-btn:disabled { opacity: 0.6; cursor: default; }
+
+  .bulk-btn { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+    background: #1d4ed8; color: #fff; font-weight: 800; font-size: 13px; letter-spacing: 0.03em;
+    padding: 14px; border-radius: 12px; border: none; cursor: pointer; margin: 14px 0; }
+  .bulk-btn:hover { background: #2563eb; }
+  input[type="file"] { width: 100%; background: #0f172a; color: #cbd5e1; border: 2px solid #334155;
+    border-radius: 12px; padding: 12px; font-size: 12px; font-weight: 600; }
+  .bulk-row { display: flex; align-items: flex-start; justify-content: space-between;
+    background: #0f172a; border: 2px solid #334155; border-radius: 12px; padding: 12px 14px; margin-bottom: 8px; }
+  .bulk-row .b-shop { font-weight: 800; font-size: 13px; }
+  .bulk-row .b-firm { color: #94a3b8; font-size: 11px; margin-top: 2px; font-weight: 600; }
+  .bulk-row .b-reason { color: #f87171; font-size: 10.5px; margin-top: 4px; font-weight: 700; }
+  .bulk-pill { padding: 4px 10px; border-radius: 999px; font-size: 11px; font-weight: 800; flex-shrink: 0; margin-left: 10px; white-space: nowrap; }
+  .bulk-pill.ready { background: #052e16; color: #4ade80; }
+  .bulk-pill.skip { background: #450a0a; color: #f87171; }
 
   /* Broker picker */
   .broker-picker { position: relative; }
@@ -229,6 +245,11 @@
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v13m0 0-4-4m4 4 4-4M4 21h16"/></svg>
       DOWNLOAD ALL PARTY DETAILS
     </button>
+
+    <button class="bulk-btn" id="bulkImportBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 21V9m0 0-4 4m4-4 4 4M4 3h16"/></svg>
+      BULK IMPORT FROM EXCEL
+    </button>
   </div>
 
   <button class="fab" id="addFab" title="Add party details">
@@ -261,6 +282,36 @@
   <div class="wrap">
     <div id="dashActionArea"></div>
     <div id="dashListArea"></div>
+  </div>
+</div>
+
+<div id="bulkView">
+  <div class="form-header">
+    <button class="back-btn" id="bulkBackBtn">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 19-7-7 7-7M19 12H5"/></svg>
+    </button>
+    <h2>BULK IMPORT FROM EXCEL</h2>
+  </div>
+  <div class="wrap">
+    <div class="field-hint" style="margin:16px 0;">
+      SABSE PEHLE NEECHE WALA TEMPLATE DOWNLOAD KARO. USME "SHOP NUMBERS" COLUMN ZAROORI HAI (EK PARTY KE MULTIPLE SHOP HON TO COMMA SE ALAG ALAG LIKHO, JAISE "G-101, G-102"). BAAKI COLUMNS OPTIONAL HAIN — JITNA DATA PATA HAI UTNA BHARO, KHALI CHOD SAKTE HO. POSSESSION EXPIRY AUTOMATIC CALCULATE HO JAYEGI, USKE LIYE ALAG COLUMN NAHI HAI.<br><br>
+      AGAR SHOP NUMBER PEHLE SE SYSTEM ME HAI, TO USKA EXISTING DATA DELETE YA OVERWRITE NAHI HOGA — SIRF JO FIELDS ABHI KHALI HAIN WOHI IS FILE SE FILL HONGI, BAAKI SAB WAISA HI RAHEGA.
+    </div>
+
+    <button class="bulk-btn" id="downloadTemplateBtn">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 3v13m0 0-4-4m4 4 4-4M4 21h16"/></svg>
+      DOWNLOAD IMPORT TEMPLATE (.XLSX)
+    </button>
+
+    <div class="field">
+      <label>SELECT FILLED EXCEL FILE</label>
+      <input type="file" id="bulkFileInput" accept=".xlsx,.xls">
+    </div>
+
+    <div id="bulkErr"></div>
+    <div id="bulkSummary"></div>
+    <div id="bulkPreviewList"></div>
+    <button class="save-btn" id="bulkImportConfirmBtn" style="display:none;">IMPORT PARTIES</button>
   </div>
 </div>
 
@@ -691,6 +742,292 @@ function closeDashboard() {
   searchView.style.display = 'block';
 }
 
+// ================== BULK IMPORT FROM EXCEL ==================
+
+const bulkView = document.getElementById('bulkView');
+let bulkCandidates = [];
+
+function normalizeHeader(h) {
+  return String(h || '').trim().toUpperCase();
+}
+
+function formatYMD(d) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
+// Accepts a JS Date (from cellDates:true), an Excel serial number, or a typed string
+// like "01-05-2026" / "2026-05-01", and always returns "YYYY-MM-DD" (or '' if unreadable).
+function excelDateToStr(val) {
+  if (val === null || val === undefined || val === '') return '';
+  if (val instanceof Date && !isNaN(val.getTime())) return formatYMD(val);
+  if (typeof val === 'number') {
+    const utcDays = Math.floor(val - 25569);
+    const utcValue = utcDays * 86400;
+    const d = new Date(utcValue * 1000);
+    if (!isNaN(d.getTime())) return formatYMD(d);
+    return '';
+  }
+  const s = String(val).trim();
+  if (!s) return '';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if (m) {
+    const dd = m[1].padStart(2, '0'), mm = m[2].padStart(2, '0'), yyyy = m[3];
+    return yyyy + '-' + mm + '-' + dd;
+  }
+  const d2 = new Date(s);
+  if (!isNaN(d2.getTime())) return formatYMD(d2);
+  return '';
+}
+
+function openBulkView() {
+  bulkCandidates = [];
+  document.getElementById('bulkFileInput').value = '';
+  document.getElementById('bulkErr').innerHTML = '';
+  document.getElementById('bulkSummary').innerHTML = '';
+  document.getElementById('bulkPreviewList').innerHTML = '';
+  document.getElementById('bulkImportConfirmBtn').style.display = 'none';
+  searchView.style.display = 'none';
+  formView.style.display = 'none';
+  dashboardView.style.display = 'none';
+  bulkView.style.display = 'block';
+}
+
+function closeBulkView() {
+  bulkView.style.display = 'none';
+  searchView.style.display = 'block';
+  renderSearch();
+}
+
+function downloadImportTemplate() {
+  const headers = ['SHOP NUMBERS'].concat(FIELD_DEFS.map(f => f.label));
+  const sampleValues = {
+    firmName: 'ABC TRADERS', gstNo: '24AAAAA0000A1Z5', ownerName: 'RAMESH SHAH', ownerMobile: '9876543210',
+    rentalName: '', rentalMobile: '', partnerName: '', partnerMobile: '',
+    officeManagerNumber: '9876500000', brokerName: 'SURESH BROKER', brokerMobile: '9812345678',
+    possessionDate: '2026-05-01', referenceFormStatus: 'NO', agreementStatus: 'NO', shopMaliyaStatus: 'NO',
+    furnitureStatus: 'NO', securityDepositStatus: 'NO', veraBillStatus: 'NO', maintenanceBillStatus: 'NO'
+  };
+  const exampleRow = ['G-101, G-102'].concat(FIELD_DEFS.map(f => sampleValues[f.key] || ''));
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, exampleRow]);
+  ws['!cols'] = headers.map(() => ({ wch: 20 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Template');
+  XLSX.writeFile(wb, 'bulk-import-template.xlsx');
+}
+
+// Figures out, for a merge/update row, exactly which currently-empty fields would get
+// filled by the incoming data, and which shop numbers (if any) would be newly linked
+// to that existing party. Never reports a field as "to update" if it already has a value.
+function computeUpdatePreview(existing, incoming, shopNumbers) {
+  const fieldsToUpdate = [];
+  FIELD_DEFS.forEach(f => {
+    const curVal = existing[f.key];
+    const newVal = incoming[f.key];
+    if ((!curVal || !String(curVal).trim()) && newVal && String(newVal).trim()) {
+      fieldsToUpdate.push(f.label);
+    }
+  });
+  const newShops = shopNumbers.filter(sn => !(existing.shopNumbers || []).includes(sn));
+  return { fieldsToUpdate, newShops };
+}
+
+async function handleBulkFile(file) {
+  document.getElementById('bulkErr').innerHTML = '';
+  document.getElementById('bulkSummary').innerHTML = '';
+  document.getElementById('bulkPreviewList').innerHTML = '';
+  document.getElementById('bulkImportConfirmBtn').style.display = 'none';
+  bulkCandidates = [];
+
+  try {
+    const data = await file.arrayBuffer();
+    const wb = XLSX.read(data, { type: 'array', cellDates: true });
+    const wsName = wb.SheetNames[0];
+    const ws = wb.Sheets[wsName];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+
+    if (!rows.length) {
+      document.getElementById('bulkErr').innerHTML = '<div class="err">EXCEL FILE EMPTY HAI.</div>';
+      return;
+    }
+
+    const headerRow = rows[0];
+    const headerIdx = {};
+    headerRow.forEach((h, i) => { headerIdx[normalizeHeader(h)] = i; });
+
+    const shopIdx = headerIdx['SHOP NUMBERS'];
+    if (shopIdx === undefined) {
+      document.getElementById('bulkErr').innerHTML = '<div class="err">"SHOP NUMBERS" COLUMN NAHI MILA. TEMPLATE DOWNLOAD KARKE USI FORMAT ME DATA BHARO.</div>';
+      return;
+    }
+
+    const dataRows = rows.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+    if (!dataRows.length) {
+      document.getElementById('bulkErr').innerHTML = '<div class="err">FILE ME KOI DATA ROW NAHI MILI.</div>';
+      return;
+    }
+
+    // sn -> { type: 'existing', key: partyId } | { type: 'batch', key: rowIndex }
+    // Seeded with every shop number already on file, then updated as we walk the rows so
+    // duplicates *within the same file* are also caught (whether the earlier row was a
+    // create or an update).
+    const workingShopMap = new Map();
+    getPartyEntries().forEach(p => {
+      (p.shopNumbers || []).forEach(sn => workingShopMap.set(sn, { type: 'existing', key: p.partyId }));
+    });
+
+    dataRows.forEach((r, idx) => {
+      const shopRaw = r[shopIdx];
+      const shopNumbers = String(shopRaw || '').split(/[,;/]+/).map(s => s.trim().toUpperCase()).filter(Boolean);
+      const incoming = {};
+
+      FIELD_DEFS.forEach(f => {
+        const ci = headerIdx[normalizeHeader(f.label)];
+        let val = ci !== undefined ? r[ci] : '';
+        if (f.type === 'date') {
+          val = excelDateToStr(val);
+        } else if (f.type === 'bool') {
+          const s = String(val || '').trim().toUpperCase();
+          val = (s === 'YES' || s === 'Y' || s === 'TRUE') ? 'YES' : (val ? 'NO' : '');
+        } else {
+          val = String(val || '').trim().toUpperCase();
+        }
+        incoming[f.key] = val;
+      });
+
+      if (!shopNumbers.length) {
+        bulkCandidates.push({ status: 'error', reason: 'ROW ' + (idx + 2) + ': SHOP NUMBER KHALI HAI', record: { shopNumbers: [], ...incoming } });
+        return;
+      }
+
+      const matches = shopNumbers.map(sn => workingShopMap.get(sn)).filter(Boolean);
+      const matchedExistingKeys = Array.from(new Set(matches.filter(m => m.type === 'existing').map(m => m.key)));
+      const matchedBatchRows = matches.filter(m => m.type === 'batch');
+
+      let candidate;
+
+      if (matchedBatchRows.length) {
+        candidate = { status: 'skip', reason: 'SHOP ' + shopNumbers.find(sn => workingShopMap.get(sn) && workingShopMap.get(sn).type === 'batch') + ' ISI FILE ME DUPLICATE HAI', record: { shopNumbers, ...incoming } };
+      } else if (matchedExistingKeys.length > 1) {
+        candidate = { status: 'skip', reason: 'IS ROW KE SHOP NUMBERS ALAG-ALAG PARTIES SE LINKED HAIN', record: { shopNumbers, ...incoming } };
+      } else if (matchedExistingKeys.length === 1) {
+        const targetKey = matchedExistingKeys[0];
+        const existing = parties[targetKey];
+        const { fieldsToUpdate, newShops } = computeUpdatePreview(existing, incoming, shopNumbers);
+        candidate = {
+          status: 'ok',
+          mode: 'update',
+          targetKey,
+          record: { shopNumbers, ...incoming },
+          fieldsToUpdate,
+          newShops,
+          reason: fieldsToUpdate.length || newShops.length
+            ? 'UPDATE: ' + (fieldsToUpdate.length ? fieldsToUpdate.join(', ') : '') + (newShops.length ? (fieldsToUpdate.length ? ' + ' : '') + 'NEW SHOP ' + newShops.join(', ') : '')
+            : 'KOI NAYI FIELD NAHI MILI, KUCH BADLEGA NAHI'
+        };
+      } else {
+        candidate = { status: 'ok', mode: 'create', record: { shopNumbers, ...incoming } };
+      }
+
+      shopNumbers.forEach(sn => { if (!workingShopMap.has(sn) || workingShopMap.get(sn).type !== 'existing') workingShopMap.set(sn, { type: 'batch', key: idx }); });
+
+      bulkCandidates.push(candidate);
+    });
+
+    renderBulkPreview();
+  } catch (err) {
+    console.error('Bulk parse failed', err);
+    document.getElementById('bulkErr').innerHTML = '<div class="err">FILE PADHNE ME ERROR AAYI. SAHI .XLSX FILE SELECT KARO.</div>';
+  }
+}
+
+function renderBulkPreview() {
+  const ready = bulkCandidates.filter(c => c.status === 'ok');
+  const creates = ready.filter(c => c.mode === 'create');
+  const updates = ready.filter(c => c.mode === 'update');
+  const skipped = bulkCandidates.filter(c => c.status !== 'ok');
+
+  document.getElementById('bulkSummary').innerHTML =
+    '<div class="msg" style="background:#1d4ed8;">' +
+      creates.length + ' NEW &middot; ' + updates.length + ' UPDATE' +
+      (skipped.length ? ' &middot; ' + skipped.length + ' SKIPPED' : '') +
+    '</div>';
+
+  document.getElementById('bulkPreviewList').innerHTML = bulkCandidates.map(c => {
+    const pillClass = c.status === 'ok' ? (c.mode === 'update' ? 'ready' : 'ready') : 'skip';
+    const pillText = c.status !== 'ok' ? 'SKIP' : (c.mode === 'update' ? 'UPDATE' : 'NEW');
+    return '<div class="bulk-row">' +
+      '<div><div class="b-shop">' + (c.record.shopNumbers.join(', ') || '(NO SHOP)') + '</div>' +
+      '<div class="b-firm">' + (c.record.firmName || '\u2014') + '</div>' +
+      (c.reason ? '<div class="b-reason" style="color:' + (c.status === 'ok' ? '#94a3b8' : '#f87171') + ';">' + c.reason + '</div>' : '') + '</div>' +
+      '<span class="bulk-pill ' + pillClass + '">' + pillText + '</span>' +
+    '</div>';
+  }).join('');
+
+  const confirmBtn = document.getElementById('bulkImportConfirmBtn');
+  if (ready.length) {
+    confirmBtn.style.display = 'block';
+    confirmBtn.textContent = 'IMPORT ' + creates.length + ' NEW + UPDATE ' + updates.length;
+  } else {
+    confirmBtn.style.display = 'none';
+  }
+}
+
+function importBulkCandidates() {
+  const ready = bulkCandidates.filter(c => c.status === 'ok');
+  if (!ready.length) return;
+
+  let createdCount = 0, updatedCount = 0;
+
+  ready.forEach(c => {
+    if (c.mode === 'create') {
+      const id = generatePartyId();
+      const rec = Object.assign({}, c.record, { partyId: id, history: [] });
+      parties[id] = rec;
+      createdCount++;
+    } else if (c.mode === 'update') {
+      const existing = parties[c.targetKey];
+      if (!existing) return;
+      const updated = Object.assign({}, existing);
+      let changed = false;
+
+      FIELD_DEFS.forEach(f => {
+        const curVal = existing[f.key];
+        const newVal = c.record[f.key];
+        if ((!curVal || !String(curVal).trim()) && newVal && String(newVal).trim()) {
+          updated[f.key] = newVal;
+          changed = true;
+        }
+      });
+
+      const mergedShops = (existing.shopNumbers || []).slice();
+      c.record.shopNumbers.forEach(sn => { if (!mergedShops.includes(sn)) { mergedShops.push(sn); changed = true; } });
+      updated.shopNumbers = mergedShops;
+
+      if (changed) {
+        const oldSnapshot = {};
+        FIELD_DEFS.forEach(f => { oldSnapshot[f.key] = existing[f.key]; });
+        oldSnapshot.shopNumbers = existing.shopNumbers;
+        oldSnapshot.savedAt = new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        updated.history = (existing.history || []).concat([oldSnapshot]);
+        parties[c.targetKey] = updated;
+        updatedCount++;
+      }
+    }
+  });
+
+  syncBrokersFromParties();
+  syncToStorage();
+
+  bulkCandidates = [];
+  closeBulkView();
+  showMsg(createdCount + ' NEW PARTY ADDED &middot; ' + updatedCount + ' PARTY UPDATED');
+}
+
 function renderSearch(selectedShopNumber) {
   updateDashboardCounts();
 
@@ -1110,6 +1447,13 @@ document.getElementById('boxSecurity').onclick = () => openDashboardList('securi
 document.getElementById('boxAgreement').onclick = () => openDashboardList('agreement');
 document.getElementById('boxReference').onclick = () => openDashboardList('reference');
 document.getElementById('downloadAllBtn').onclick = downloadAllPartiesPdf;
+document.getElementById('bulkImportBtn').onclick = openBulkView;
+document.getElementById('bulkBackBtn').onclick = closeBulkView;
+document.getElementById('downloadTemplateBtn').onclick = downloadImportTemplate;
+document.getElementById('bulkImportConfirmBtn').onclick = importBulkCandidates;
+document.getElementById('bulkFileInput').addEventListener('change', (e) => {
+  if (e.target.files && e.target.files[0]) handleBulkFile(e.target.files[0]);
+});
 searchInput.addEventListener('input', () => renderSearch());
 
 loadData();
