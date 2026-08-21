@@ -624,6 +624,7 @@ function partySortKey(p) {
 
 // --- Download ALL party details as a single portrait PDF, serial-ordered (G, then UG, then 1-7),
 // excluding all YES/NO status fields as well as rental/partner name & mobile, and including possession expiry.
+// NOTE: Broker mobile number column intentionally excluded from this PDF (broker name is still included).
 function downloadAllPartiesPdf() {
   const all = getPartyEntries().slice();
   if (!all.length) { showMsg('NO PARTY DATA TO DOWNLOAD'); return; }
@@ -655,7 +656,6 @@ function downloadAllPartiesPdf() {
       p.ownerMobile || '-',
       p.officeManagerNumber || '-',
       p.brokerName || '-',
-      p.brokerMobile || '-',
       p.possessionDate || '-',
       expiry
     ];
@@ -663,7 +663,7 @@ function downloadAllPartiesPdf() {
 
   doc.autoTable({
     startY: 56,
-    head: [['SHOP NO', 'FIRM NAME', 'GST NO', 'OWNER NAME', 'OWNER MOBILE', 'OFFICE MGR NO', 'BROKER NAME', 'BROKER MOBILE', 'POSSESSION DATE', 'POSSESSION EXPIRY']],
+    head: [['SHOP NO', 'FIRM NAME', 'GST NO', 'OWNER NAME', 'OWNER MOBILE', 'OFFICE MGR NO', 'BROKER NAME', 'POSSESSION DATE', 'POSSESSION EXPIRY']],
     body: rows,
     theme: 'grid',
     styles: { fontSize: 6.5, cellPadding: 3, valign: 'middle', overflow: 'linebreak' },
@@ -673,14 +673,13 @@ function downloadAllPartiesPdf() {
     columnStyles: {
       0: { cellWidth: 42 },
       1: { cellWidth: 62 },
-      2: { cellWidth: 55 },
+      2: { cellWidth: 92, overflow: 'visible' },
       3: { cellWidth: 58 },
       4: { cellWidth: 52 },
       5: { cellWidth: 50 },
-      6: { cellWidth: 52 },
+      6: { cellWidth: 58 },
       7: { cellWidth: 52 },
-      8: { cellWidth: 48 },
-      9: { cellWidth: 48 }
+      8: { cellWidth: 52 }
     }
   });
 
